@@ -6,9 +6,19 @@ import path from 'node:path';
 import express from 'express';
 import { Server, type Socket } from 'socket.io';
 import { RATING } from '../shared/config';
-import { AVATARS, type ClientToServer, type ServerToClient, type UserProfile } from '../shared/protocol';
+import {
+  AVATARS,
+  type ClientToServer,
+  type HandRecord,
+  type LeaderboardTab,
+  type MatchRecord,
+  type ServerToClient,
+  type StatsPayload,
+  type UserProfile,
+} from '../shared/protocol';
 import { actInfo, ratingDelta } from '../shared/rating';
 import { Match, type Participant } from './game/match';
+import { addHand } from './game/record';
 import { newUser, rollAct, store, supabaseAdmin } from './store';
 
 // 開発時(--dev)は Vite のプロキシ先 3001 に固定
@@ -111,9 +121,36 @@ io.on('connection', (socket: Sock) => {
   socket.on('profile:update', async (p) => {
     const name = typeof p?.name === 'string' ? sanitizeName(p.name) : s.user.name;
     const avatar = typeof p?.avatar === 'string' && (AVATARS as readonly string[]).includes(p.avatar) ? p.avatar : s.user.avatar;
-    s.user = { ...s.user, name: name || s.user.name, avatar };
+    // Xのユーザー名: 英数字と_の1〜15文字のみ（空なら解除）
+    let xHandle = s.user.xHandle;
+    if (p && 'xHandle' in p) {
+      const raw = typeof p.xHandle === 'string' ? p.xHandle.trim().replace(/^@/, '') : '';
+      xHandle = /^[A-Za-z0-9_]{1,15}$/.test(raw) ? raw : null;
+    }
+    s.user = { ...s.user, name: name || s.user.name, avatar, xHandle };
     await store.save(s.user).catch(console.error);
     socket.emit('me', s.user);
+  });
+
+  socket.on('stats:get', async (ack) => {
+    if (typeof ack !== 'function') return;
+    try {
+      ack(await buildStats(s.user));
+    } catch (e) {
+      console.error('stats error', e);
+    }
+  });
+
+  socket.on('hands:list', async (matchId, ack) => {
+    if (typeof ack !== 'function' || typeof matchId !== 'string') return;
+    try {
+      const hands = await store.handsByMatch(matchId);
+      // 自分が参加した試合のみ。相手の手札は公開されたハンドだけ見せる
+      ack(hands.filter((h) => h.players.some((p) => p.id === userId)).map((h) => maskHand(h, userId)));
+    } catch (e) {
+      console.error('hands error', e);
+      ack([]);
+    }
   });
 
   socket.on('queue:join', () => {
@@ -252,6 +289,7 @@ function startMatch(mode: 'ranked' | 'friend' | 'cpu', a: Session, b: Session | 
   const match = new Match(id, mode, players, {
     emitState: (seat, state) => sessions.get(players[seat].userId)?.socket?.emit('match:state', state),
     onEnd: (m, winner, reason) => void endMatch(m, winner, reason),
+    onHand: (m, record) => void recordHand(m, record),
   });
   matches.set(id, match);
   for (const s of [a, b]) {
@@ -261,6 +299,48 @@ function startMatch(mode: 'ranked' | 'friend' | 'cpu', a: Session, b: Session | 
     s.socket?.emit('friend:status', { waiting: false, code: '' });
   }
   match.start();
+}
+
+/** ハンド履歴を保存し、人間同士の試合なら通算成績を更新 */
+async function recordHand(m: Match, record: HandRecord) {
+  await store.saveHand(record).catch((e) => console.error('saveHand', e));
+  if (m.mode === 'cpu') return;
+  for (const seat of [0, 1]) {
+    const sess = sessions.get(record.players[seat].id);
+    if (!sess) continue;
+    sess.user = { ...sess.user, stats: addHand(sess.user.stats, record.seatStats[seat]) };
+    await store.save(sess.user).catch(console.error);
+  }
+}
+
+function maskHand(h: HandRecord, viewerId: string): HandRecord {
+  const me = h.players.findIndex((p) => p.id === viewerId);
+  return { ...h, hole: h.hole.map((c, s) => (s === me || h.shown[s] ? c : [])) as HandRecord['hole'] };
+}
+
+async function buildStats(user: UserProfile): Promise<StatsPayload> {
+  const [matches, hands] = await Promise.all([store.matchesByUser(user.id, 200), store.handsByUser(user.id, 5000)]);
+  const ratingSeries = matches
+    .filter((m) => m.mode === 'ranked')
+    .map((m) => {
+      const r = m.rating[m.players.indexOf(user.id)];
+      return r ? { at: m.at, rating: r.after } : null;
+    })
+    .filter((x): x is { at: number; rating: number } => !!x)
+    .reverse();
+  let net = 0, ev = 0, sd = 0, nsd = 0;
+  const profitSeries = hands
+    .filter((h) => h.mode !== 'cpu')
+    .map((h) => {
+      const st = h.seatStats[h.players.findIndex((p) => p.id === user.id)];
+      net += st.netBB;
+      ev += st.evBB;
+      if (st.showdown) sd += st.netBB;
+      else nsd += st.netBB;
+      const r2 = (n: number) => Math.round(n * 100) / 100;
+      return { net: r2(net), ev: r2(ev), sd: r2(sd), nsd: r2(nsd) };
+    });
+  return { stats: user.stats, ratingSeries, profitSeries, matches: matches.map((m) => ({ ...m, you: m.players.indexOf(user.id) })) };
 }
 
 async function endMatch(m: Match, winner: number, reason: 'bust' | 'forfeit' | 'disconnect') {
@@ -286,6 +366,26 @@ async function endMatch(m: Match, winner: number, reason: 'bust' | 'forfeit' | '
     leaderboardCache = null;
   }
 
+  // 試合記録（ランキング・レート推移・履歴用）
+  const record: MatchRecord = {
+    id: m.id,
+    mode: m.mode,
+    at: Date.now(),
+    players: [m.players[0].userId, m.players[1].userId],
+    names: [m.players[0].name, m.players[1].name],
+    winner,
+    hands: m.handNo,
+    rating: changes.map((c) => (c ? { before: c.before, after: c.after } : null)) as MatchRecord['rating'],
+  };
+  await store.saveMatch(record).catch((e) => console.error('saveMatch', e));
+  if (m.mode !== 'cpu') {
+    ss.forEach((s, seat) => {
+      if (!s) return;
+      s.user = { ...s.user, stats: { ...s.user.stats, matches: s.user.stats.matches + 1, matchWins: s.user.stats.matchWins + (seat === winner ? 1 : 0) } };
+      void store.save(s.user).catch(console.error);
+    });
+  }
+
   ss.forEach((s, seat) => {
     if (!s) return;
     s.matchId = null;
@@ -296,16 +396,30 @@ async function endMatch(m: Match, winner: number, reason: 'bust' | 'forfeit' | '
 }
 
 // ---------- HTTP API ----------
-let leaderboardCache: { at: number; act: number; data: Awaited<ReturnType<typeof store.leaderboard>> } | null = null;
+// ランキングは30秒キャッシュ（タブごと）
+let leaderboardCache: Map<string, { at: number; data: Awaited<ReturnType<typeof store.leaderboard>> }> | null = null;
 
-app.get('/api/leaderboard', async (_req, res) => {
+/** 今週の月曜 0:00（日本時間） */
+function weekStartJst(now = Date.now()) {
+  const jst = new Date(now + 9 * 3600_000);
+  const day = (jst.getUTCDay() + 6) % 7; // 月曜=0
+  return Date.UTC(jst.getUTCFullYear(), jst.getUTCMonth(), jst.getUTCDate() - day) - 9 * 3600_000;
+}
+
+app.get('/api/leaderboard', async (req, res) => {
   try {
+    const tab: LeaderboardTab = req.query.tab === 'week' || req.query.tab === 'actWins' ? req.query.tab : 'rating';
     const act = currentAct();
-    if (!leaderboardCache || leaderboardCache.act !== act || Date.now() - leaderboardCache.at > 30_000) {
-      leaderboardCache = { at: Date.now(), act, data: await store.leaderboard(act, RATING.leaderboardSize) };
+    const key = `${tab}:${act}`;
+    leaderboardCache ??= new Map();
+    const hit = leaderboardCache.get(key);
+    let data = hit && Date.now() - hit.at < 30_000 ? hit.data : null;
+    if (!data) {
+      data = await store.leaderboard(tab, act, weekStartJst(), RATING.leaderboardSize);
+      leaderboardCache.set(key, { at: Date.now(), data });
     }
     const info = actInfo(Date.now(), ACT_EPOCH);
-    res.json({ act: info.act, endsAt: info.endsAt, entries: leaderboardCache.data });
+    res.json({ act: info.act, endsAt: info.endsAt, tab, entries: data });
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: 'server_error' });

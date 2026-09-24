@@ -7,7 +7,7 @@ import { go, socket, useApp } from '../lib/store';
 
 function AuthButton({ label, onClick, icon }: { label: string; onClick: () => void; icon: string }) {
   return (
-    <button onClick={onClick} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-white/[.07] py-3.5 text-[15px] font-medium ring-1 ring-white/10 transition active:scale-[.98]">
+    <button onClick={onClick} className="flex w-full items-center justify-center gap-2 rounded-xl bg-white/[.07] py-3.5 text-[15px] font-medium ring-1 ring-white/10 transition active:scale-[.98]">
       <span className="w-5 text-center">{icon}</span>
       {label}
     </button>
@@ -23,8 +23,14 @@ export function Profile() {
   const [email, setEmail] = useState('');
   const [emailMode, setEmailMode] = useState<'link' | 'login' | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [xHandle, setXHandle] = useState(me.xHandle ?? '');
+  const [agreed, setAgreed] = useState(false); // 規約への同意（アカウント作成・ログイン時に必須）
 
-  const dirty = name.trim() !== me.name || avatar !== me.avatar;
+  const xClean = xHandle.trim().replace(/^@/, '');
+  const xValid = xClean === '' || /^[A-Za-z0-9_]{1,15}$/.test(xClean);
+  const dirty = name.trim() !== me.name || avatar !== me.avatar || xClean !== (me.xHandle ?? '');
+  // 同意していない場合は実行せずに案内
+  const needAgree = (f: () => void) => () => (agreed ? f() : setMessage(t('agreeRequired')));
   const run = (f: () => Promise<void>) => f().catch((e: Error) => setMessage(e.message));
 
   return (
@@ -50,7 +56,7 @@ export function Profile() {
             setName(e.target.value);
             setSaved(false);
           }}
-          className="glass mt-2 w-full rounded-2xl px-4 py-3.5 text-[17px] outline-none focus:border-[#d9bf8c]/60"
+          className="glass mt-2 w-full rounded-xl px-4 py-3.5 text-[17px] outline-none focus:border-[#d9bf8c]/60"
         />
         <div className="mt-6 text-[12px] uppercase tracking-[.25em] text-[var(--color-mist)]">{t('icon')}</div>
         <div className="mt-3 grid grid-cols-6 gap-3">
@@ -61,7 +67,7 @@ export function Profile() {
                 setAvatar(a);
                 setSaved(false);
               }}
-              className={`rounded-full transition ${avatar === a ? 'ring-2 ring-[#d9bf8c] ring-offset-2 ring-offset-[#0a0a0c]' : 'opacity-70'}`}
+              className={`rounded-full transition ${avatar === a ? 'ring-2 ring-[#d9bf8c] ring-offset-2 ring-offset-[#0c0a1c]' : 'opacity-70'}`}
               aria-label={a}
               aria-pressed={avatar === a}
             >
@@ -69,13 +75,33 @@ export function Profile() {
             </button>
           ))}
         </div>
+        <label htmlFor="xhandle" className="mt-6 block text-[12px] uppercase tracking-[.25em] text-[var(--color-mist)]">
+          {t('xAccount')}
+        </label>
+        <div className="glass mt-2 flex items-center rounded-xl px-4 focus-within:border-[#d9bf8c]/60">
+          <span className="text-[17px] text-[var(--color-mist)]">@</span>
+          <input
+            id="xhandle"
+            value={xHandle}
+            maxLength={16}
+            autoCapitalize="off"
+            autoComplete="off"
+            placeholder={t('xPh')}
+            onChange={(e) => {
+              setXHandle(e.target.value);
+              setSaved(false);
+            }}
+            className="w-full bg-transparent px-1 py-3.5 text-[17px] outline-none placeholder:text-white/25"
+            aria-invalid={!xValid}
+          />
+        </div>
         <button
-          disabled={!dirty || !name.trim()}
+          disabled={!dirty || !name.trim() || !xValid}
           onClick={() => {
-            socket.emit('profile:update', { name: name.trim(), avatar });
+            socket.emit('profile:update', { name: name.trim(), avatar, xHandle: xClean || null });
             setSaved(true);
           }}
-          className="mt-6 w-full rounded-2xl bg-[#f5f3ee] py-3.5 text-[16px] font-semibold text-[#0a0a0c] transition active:scale-[.98] disabled:opacity-30"
+          className="mt-6 w-full rounded-xl bg-[#f5f3ee] py-3.5 text-[16px] font-semibold text-[#0c0a1c] transition active:scale-[.98] disabled:opacity-30"
         >
           {saved && !dirty ? t('saved') : t('save')}
         </button>
@@ -99,20 +125,34 @@ export function Profile() {
         ) : (
           <>
             <p className="mt-2 text-[13px] text-[var(--color-mist)]">{t('keepRating')}</p>
-            <div className="mt-3 flex flex-col gap-2">
-              <AuthButton icon="G" label={t('linkGoogle')} onClick={() => run(() => linkProvider('google'))} />
-              <AuthButton icon="" label={t('linkApple')} onClick={() => run(() => linkProvider('apple'))} />
-              <AuthButton icon="✉" label={t('linkEmail')} onClick={() => setEmailMode('link')} />
+            <label className="mt-4 flex items-start gap-3 rounded-xl bg-black/25 px-4 py-3 ring-1 ring-white/10">
+              <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="mt-0.5 h-5 w-5 shrink-0 accent-[#1f9d55]" />
+              <span className="text-[13px] leading-relaxed">
+                <button type="button" onClick={() => go('terms')} className="text-[var(--color-gold)] underline underline-offset-2">
+                  {t('terms')}
+                </button>{' '}
+                /{' '}
+                <button type="button" onClick={() => go('privacy')} className="text-[var(--color-gold)] underline underline-offset-2">
+                  {t('privacy')}
+                </button>
+                <br />
+                {t('agreeTerms')}
+              </span>
+            </label>
+            <div className={`mt-3 flex flex-col gap-2 transition ${agreed ? '' : 'opacity-40'}`}>
+              <AuthButton icon="G" label={t('linkGoogle')} onClick={needAgree(() => run(() => linkProvider('google')))} />
+              <AuthButton icon="" label={t('linkApple')} onClick={needAgree(() => run(() => linkProvider('apple')))} />
+              <AuthButton icon="✉" label={t('linkEmail')} onClick={needAgree(() => setEmailMode('link'))} />
             </div>
             <div className="mt-6 text-[13px] text-[var(--color-mist)]">{t('loginExisting')}</div>
-            <div className="mt-2 flex gap-2 text-[13px]">
-              <button onClick={() => run(() => signInProvider('google'))} className="flex-1 rounded-xl py-2.5 ring-1 ring-white/10">
+            <div className={`mt-2 flex gap-2 text-[13px] transition ${agreed ? '' : 'opacity-40'}`}>
+              <button onClick={needAgree(() => run(() => signInProvider('google')))} className="flex-1 rounded-xl py-2.5 ring-1 ring-white/10">
                 Google
               </button>
-              <button onClick={() => run(() => signInProvider('apple'))} className="flex-1 rounded-xl py-2.5 ring-1 ring-white/10">
+              <button onClick={needAgree(() => run(() => signInProvider('apple')))} className="flex-1 rounded-xl py-2.5 ring-1 ring-white/10">
                 Apple
               </button>
-              <button onClick={() => setEmailMode('login')} className="flex-1 rounded-xl py-2.5 ring-1 ring-white/10">
+              <button onClick={needAgree(() => setEmailMode('login'))} className="flex-1 rounded-xl py-2.5 ring-1 ring-white/10">
                 Email
               </button>
             </div>
@@ -141,6 +181,7 @@ export function Profile() {
           </>
         )}
         {message && <p className="mt-3 text-[13px] text-[var(--color-gold)]">{message}</p>}
+        <p className="mt-8 text-center text-[12px] text-white/40">{t('noGambling')}</p>
       </section>
     </div>
   );

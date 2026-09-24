@@ -1,8 +1,10 @@
 import { RULES, blindLevel } from '../../shared/config';
-import type { ActionType, MatchMode, SeatView, TableState } from '../../shared/protocol';
+import { randomUUID } from 'node:crypto';
+import type { ActionType, HandRecord, MatchMode, SeatView, TableState } from '../../shared/protocol';
 import { allInOdds } from '../../shared/cards';
 import { decideBot } from './bot';
 import { Hand } from './hand';
+import { seatStats } from './record';
 
 export interface Participant {
   userId: string;
@@ -18,10 +20,12 @@ export type EndReason = 'bust' | 'forfeit' | 'disconnect';
 export interface MatchHooks {
   emitState: (seat: number, state: TableState) => void;
   onEnd: (match: Match, winner: number, reason: EndReason) => void;
+  onHand: (match: Match, record: HandRecord) => void;
 }
 
 const PAUSE_DELAY = 1000; // アクション表示後、次のカードを配るまでの間
-const RUNOUT_DELAY = 1600;
+const RUNOUT_FIRST_DELAY = 2500; // オールイン: カード公開から最初にめくるまで
+const RUNOUT_DELAY = 3000; // オールイン: 次の1枚をめくるまで（勝率・アウツを見る時間）
 const RESULT_DELAY = 3200;
 const SHOWDOWN_DELAY = 5000;
 
@@ -42,6 +46,9 @@ export class Match {
   private timeTotal: number | null = null;
   private usingTimebank = false;
   private odds: TableState['odds'] = null;
+  private runoutStarted = false;
+  private evAtAllIn: { equity: [number, number]; pot: number } | null = null; // オールインEV計算用
+  private handStartStacks: [number, number] = [0, 0];
   private level = blindLevel(0);
 
   constructor(
@@ -66,6 +73,9 @@ export class Match {
     this.handNo++;
     if (this.handNo > 1) this.button = 1 - this.button;
     this.level = blindLevel(this.levelIndex());
+    this.runoutStarted = false;
+    this.evAtAllIn = null;
+    this.handStartStacks = [...this.stacks];
     this.hand = new Hand({ stacks: this.stacks, button: this.button, ...this.level });
     this.step();
   }
@@ -78,6 +88,8 @@ export class Match {
     this.timeTotal = null;
     this.usingTimebank = false;
     this.odds = h.phase === 'runout' ? allInOdds(h.hole, h.board) : null;
+    // オールインが決まった瞬間の勝率を記録（EV収支に使う）
+    if (this.odds && !this.evAtAllIn) this.evAtAllIn = { equity: this.odds.equity, pot: h.totalPot };
 
     if (h.phase === 'betting' && h.toAct !== null) {
       const seat = h.toAct;
@@ -95,12 +107,17 @@ export class Match {
         this.step();
       }, PAUSE_DELAY);
     } else if (h.phase === 'runout') {
-      this.timer = setTimeout(() => {
-        h.runoutStep();
-        this.step();
-      }, RUNOUT_DELAY);
+      this.timer = setTimeout(
+        () => {
+          h.runoutStep();
+          this.step();
+        },
+        this.runoutStarted ? RUNOUT_DELAY : RUNOUT_FIRST_DELAY,
+      );
+      this.runoutStarted = true;
     } else if (h.phase === 'done') {
       this.stacks = [...h.stacks];
+      this.emitHandRecord(h);
       const delay = h.result?.byFold ? RESULT_DELAY : SHOWDOWN_DELAY;
       this.timer = setTimeout(() => {
         const busted = this.stacks.findIndex((s) => s <= 0);
@@ -112,6 +129,46 @@ export class Match {
   }
 
   /** 時間切れ: チェックできればチェック、できなければフォールド */
+  private emitHandRecord(h: Hand) {
+    const r = h.result!;
+    const record: HandRecord = {
+      id: randomUUID(),
+      matchId: this.id,
+      mode: this.mode,
+      handNo: this.handNo,
+      at: Date.now(),
+      level: this.level.level,
+      sb: this.level.sb,
+      bb: this.level.bb,
+      ante: this.level.ante,
+      button: h.button,
+      players: [0, 1].map((s) => {
+        const p = this.players[s];
+        return { id: p.userId, name: p.name, avatar: p.avatar, isCpu: p.isCpu };
+      }) as HandRecord['players'],
+      startStacks: this.handStartStacks,
+      hole: h.hole,
+      shown: [h.cardsExposed, h.cardsExposed],
+      board: h.board.slice(),
+      log: h.log,
+      result: r,
+      seatStats: seatStats({
+        log: h.log,
+        invested: h.invested,
+        won: r.won,
+        bb: this.level.bb,
+        showdown: !r.byFold,
+        evEquity: this.evAtAllIn?.equity ?? null,
+        evPot: this.evAtAllIn?.pot ?? null,
+      }),
+    };
+    try {
+      this.hooks.onHand(this, record);
+    } catch (e) {
+      console.error('onHand failed', e);
+    }
+  }
+
   private onTimeout(seat: number) {
     if (this.over || this.hand?.toAct !== seat) return;
     this.autoAct(seat);
@@ -237,6 +294,7 @@ export class Match {
       legal: h.legal(viewer),
       lastAction: h.lastAction,
       result: h.result,
+      log: h.log,
       serverTime: Date.now(),
     };
   }

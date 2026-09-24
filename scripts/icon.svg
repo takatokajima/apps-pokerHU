@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="35%" r="75%">
+      <stop offset="0" stop-color="#1c5a42"/>
+      <stop offset="0.6" stop-color="#0c2a1f"/>
+      <stop offset="1" stop-color="#061510"/>
+    </radialGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f3dca6"/>
+      <stop offset="1" stop-color="#b8924f"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#bg)"/>
+  <!-- スペード（中央の安全領域内） -->
+  <path fill="url(#gold)" d="M256 118c-18 34-66 74-98 104-26 24-38 48-38 74 0 44 34 74 74 74 22 0 40-8 52-22-4 30-16 54-38 74h96c-22-20-34-44-38-74 12 14 30 22 52 22 40 0 74-30 74-74 0-26-12-50-38-74-32-30-80-70-98-104z"/>
+</svg>

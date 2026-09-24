@@ -62,7 +62,7 @@ export function Queue() {
             <p className="text-[13px] text-[var(--color-mist)]">{t('cpuOffer')}</p>
             <button
               onClick={() => socket.emit('cpu:start')}
-              className="glass mt-3 w-full rounded-2xl px-5 py-4 text-[15px] font-medium transition active:scale-[.98]"
+              className="glass mt-3 w-full rounded-xl px-5 py-4 text-[15px] font-medium transition active:scale-[.98]"
             >
               {t('playCpu')}
             </button>
@@ -139,11 +139,11 @@ export function Friend() {
           placeholder={t('passphrasePh')}
           autoComplete="off"
           autoCapitalize="off"
-          className="glass mt-2 w-full rounded-2xl px-5 py-4 text-[20px] outline-none placeholder:text-white/25 focus:border-[#d9bf8c]/60"
+          className="glass mt-2 w-full rounded-xl px-5 py-4 text-[20px] outline-none placeholder:text-white/25 focus:border-[#d9bf8c]/60"
         />
         <button
           disabled={!valid}
-          className="mt-4 w-full rounded-2xl bg-[#f5f3ee] py-4 text-[17px] font-semibold text-[#0a0a0c] transition active:scale-[.98] disabled:opacity-30"
+          className="mt-4 w-full rounded-xl bg-[#f5f3ee] py-4 text-[17px] font-semibold text-[#0c0a1c] transition active:scale-[.98] disabled:opacity-30"
         >
           {t('enterRoom')}
         </button>

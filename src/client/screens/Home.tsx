@@ -47,8 +47,8 @@ export function Home() {
 
       {/* ランクマッチ */}
       <section
-        className="rise relative mt-6 overflow-hidden rounded-[28px] p-5 shadow-[0_30px_60px_-25px_rgba(0,0,0,.8)] ring-1 ring-[#d9bf8c]/25"
-        style={{ animationDelay: '60ms', background: 'linear-gradient(160deg, #1b4a38 0%, #0f2f23 55%, #0a2219 100%)' }}
+        className="rise relative mt-6 overflow-hidden rounded-2xl p-5 shadow-[0_30px_60px_-25px_rgba(0,0,0,.8)] ring-1 ring-[#d9bf8c]/25"
+        style={{ animationDelay: '60ms', background: 'linear-gradient(160deg, #2e2560 0%, #1d1a45 55%, #111a3d 100%)' }}
       >
         <div className="pointer-events-none absolute -right-6 -top-10 text-[150px] leading-none text-white/[.04]">♠</div>
         <div className="flex items-center justify-between">
@@ -83,15 +83,21 @@ export function Home() {
             socket.emit('queue:join');
             go('queue');
           }}
-          className="mt-5 w-full rounded-2xl bg-[#f5f3ee] py-4 text-[17px] font-bold text-[#0a1a13] shadow-[0_12px_30px_-10px_rgba(217,191,140,.6)] transition active:scale-[.98]"
+          className="mt-5 w-full rounded-xl bg-[#f5f3ee] py-4 text-[17px] font-bold text-[#0c0a1c] transition active:scale-[.98]"
         >
           {t('play')}
         </button>
 
-        <button onClick={() => go('leaderboard')} className="mt-2 flex w-full items-center justify-between rounded-2xl px-1 py-3 text-[15px] transition active:opacity-60">
-          <span className="font-medium">{t('leaderboard')}</span>
-          <span className="text-[var(--color-gold)]">TOP 1000 →</span>
-        </button>
+        <div className="mt-2 divide-y divide-white/[.07]">
+          <button onClick={() => go('leaderboard')} className="flex w-full items-center justify-between px-1 py-3 text-[15px] transition active:opacity-60">
+            <span className="font-medium">{t('leaderboard')}</span>
+            <span className="text-[var(--color-gold)]">TOP 1000 →</span>
+          </button>
+          <button onClick={() => go('stats')} className="flex w-full items-center justify-between px-1 py-3 text-[15px] transition active:opacity-60">
+            <span className="font-medium">{t('statsAndHistory')}</span>
+            <span className="text-[var(--color-gold)]">→</span>
+          </button>
+        </div>
       </section>
 
       {/* フレンドマッチ */}
@@ -100,7 +106,7 @@ export function Home() {
           setState({ friend: { waiting: false, code: '' } });
           go('friend');
         }}
-        className="glass rise mt-4 flex items-center justify-between rounded-[28px] px-5 py-5 text-left transition active:scale-[.98]"
+        className="glass rise mt-4 flex items-center justify-between rounded-2xl px-5 py-5 text-left transition active:scale-[.98]"
         style={{ animationDelay: '120ms' }}
       >
         <div>
