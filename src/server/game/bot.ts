@@ -1,6 +1,7 @@
 import { evaluate, fullDeck, RANKS, rankOf, shuffle, suitOf, type Card } from '../../shared/cards';
 import type { ActionType, CpuLevel } from '../../shared/protocol';
 import type { Hand } from './hand';
+import handRanks from '../../shared/handRanks.json';
 
 type Decision = { type: ActionType; amount?: number };
 
@@ -16,7 +17,8 @@ export function handClass(a: Card, b: Card): string {
   return hi[0] + lo[0] + (suitOf(a) === suitOf(b) ? 's' : 'o');
 }
 
-let percentileTable: Map<string, number> | null = null;
+// 事前計算済みの順位表（scripts/make-hand-ranks.ts で再生成できる）
+let percentileTable: Map<string, number> | null = new Map(Object.entries(handRanks as Record<string, number>));
 
 /** 0 = 最強（AA）〜 1 = 最弱（72o）。組み合わせ数で重み付けした上位何%か */
 export function handPercentile(a: Card, b: Card): number {
@@ -36,7 +38,7 @@ function seeded(seed: number) {
   };
 }
 
-function buildPercentiles(): Map<string, number> {
+export function buildPercentiles(): Map<string, number> {
   const classes: { key: string; combos: number; eq: number }[] = [];
   const rand = seeded(20260925);
   const R = RANKS.split('').reverse(); // A..2

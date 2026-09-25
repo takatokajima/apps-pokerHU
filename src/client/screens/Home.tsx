@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import type { LeaderboardEntry } from '../../shared/protocol';
 import { AppShell } from '../components/AppShell';
 import { fmt, useT, type Key } from '../lib/i18n';
+import { fetchMeta, OFFLINE } from '../lib/mode';
 import { go, setState, socket, startCpu, useApp, type Screen } from '../lib/store';
 
 export function OnlinePill() {
@@ -51,7 +52,8 @@ export function Home() {
   const [top, setTop] = useState<LeaderboardEntry[] | null>(null);
 
   useEffect(() => {
-    fetch('/api/meta').then((r) => r.json()).then(setMeta).catch(() => {});
+    fetchMeta().then(setMeta).catch(() => {});
+    if (OFFLINE) return; // オフライン版はランキングなし
     fetch('/api/leaderboard?tab=rating')
       .then((r) => r.json())
       .then((d) => setTop(d.entries.slice(0, 3)))
@@ -80,25 +82,33 @@ export function Home() {
                 socket.emit('queue:join');
                 go('queue');
               }}
-              className="flex flex-col items-center justify-center rounded-lg bg-[linear-gradient(160deg,#27b56a,#168a55)] px-2 py-5 transition active:scale-[.98]"
+              disabled={OFFLINE}
+              className="flex flex-col items-center justify-center rounded-lg bg-[linear-gradient(160deg,#27b56a,#168a55)] px-2 py-5 transition active:scale-[.98] disabled:bg-none disabled:bg-[#2e2a4d] disabled:opacity-60"
             >
               <span className="text-[13px] font-bold text-white/90">{t('ranked')}</span>
               <span className="text-[24px] font-black tracking-wider">PLAY</span>
               <span className="mt-0.5 text-[11px] font-bold text-white/85 tabular-nums">
-                Act.{meta?.act ?? '–'} · {t('rating')} {me ? fmt(me.rating) : '—'}
+                {OFFLINE ? t('comingSoon') : `Act.${meta?.act ?? '–'} · ${t('rating')} ${me ? fmt(me.rating) : '—'}`}
               </span>
             </button>
-            <button onClick={openFriend} className="flex flex-col items-center justify-center rounded-lg bg-[#3a3560] px-2 py-5 transition active:scale-[.98]">
+            <button
+              onClick={openFriend}
+              disabled={OFFLINE}
+              className="flex flex-col items-center justify-center rounded-lg bg-[#3a3560] px-2 py-5 transition active:scale-[.98] disabled:opacity-60"
+            >
               <span className="text-[13px] font-bold text-white/90">{t('friend')}</span>
               <span className="text-[24px] font-black tracking-wider">PLAY</span>
-              <span className="mt-0.5 text-[11px] font-bold text-white/70">{t('friendPlay')}</span>
+              <span className="mt-0.5 text-[11px] font-bold text-white/70">{OFFLINE ? t('comingSoon') : t('friendPlay')}</span>
             </button>
           </div>
+          {OFFLINE && <p className="mt-3 text-center text-[12px] leading-relaxed text-[var(--color-mist)]">{t('comingSoonNote')}</p>}
           <div className="mt-3 flex items-center justify-center gap-4 text-[13px] text-[var(--color-mist)]">
-            <span className="flex items-center gap-1.5">
-              <Users size={15} />
-              {t('playersOnline')}: <span className="font-bold text-white tabular-nums">{fmt(online)}</span>
-            </span>
+            {!OFFLINE && (
+              <span className="flex items-center gap-1.5">
+                <Users size={15} />
+                {t('playersOnline')}: <span className="font-bold text-white tabular-nums">{fmt(online)}</span>
+              </span>
+            )}
             {meta && (
               <span className="tabular-nums">
                 Act.{meta.act} {md(meta.startsAt)}–{md(meta.endsAt - 1)}
@@ -119,7 +129,7 @@ export function Home() {
               ))}
             </div>
           </div>
-          {me?.isGuest && (
+          {me?.isGuest && !OFFLINE && (
             <button onClick={() => setState({ modal: 'account' })} className="mt-3 w-full rounded-lg bg-black/25 py-2 text-[12px] text-[var(--color-mist)]">
               {t('guestPlaying')} · <span className="font-bold text-[#6fd6a0]">{t('createAccount')}</span>
             </button>
@@ -130,6 +140,7 @@ export function Home() {
         <section className="rise rounded-xl bg-[#15122b] p-4 ring-1 ring-[#c4b8ff]/10" style={{ animationDelay: '60ms' }}>
           <CardHead label="LEADERBOARD" title={`ACT ${meta?.act ?? 1}: RATING`} />
           <div className="mt-3 flex flex-col gap-1.5">
+            {OFFLINE && <p className="py-4 text-center text-[13px] text-[var(--color-mist)]">{t('comingSoon')}</p>}
             {top?.length === 0 && <p className="py-4 text-center text-[13px] text-[var(--color-mist)]">{t('noEntries')}</p>}
             {top?.map((e, i) => (
               <div key={e.id} className={`flex items-center justify-between rounded-full bg-[#2a2645] px-4 ${i === 0 ? 'py-2.5' : 'py-1.5'}`}>
@@ -150,7 +161,7 @@ export function Home() {
           <div className="text-center text-[11px] font-bold tracking-[.2em] text-[var(--color-mist)]">{t('features')}</div>
           <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
             {FEATURES.map((f) => (
-              <button key={f.title} onClick={() => (f.friend ? openFriend() : go(f.screen))} className="flex items-start gap-3 rounded-lg p-2 text-left hover:bg-white/[.04]">
+              <button key={f.title} onClick={() => (f.friend ? !OFFLINE && openFriend() : go(f.screen))} className="flex items-start gap-3 rounded-lg p-2 text-left hover:bg-white/[.04]">
                 <span className="grid h-11 w-11 shrink-0 place-items-center rounded-lg" style={{ background: f.tint }}>
                   <f.Icon size={20} />
                 </span>
