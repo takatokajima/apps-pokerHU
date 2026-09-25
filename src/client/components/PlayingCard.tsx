@@ -1,18 +1,29 @@
+import { cardFace, useSettings } from '../lib/settings';
+
 const SUIT: Record<string, string> = { s: '♠', h: '♥', d: '♦', c: '♣' };
 const RANK: Record<string, string> = { T: '10' };
 
+// サイズごとの寸法（数字は大きく、マークは小さく）
+const DIMS = {
+  sm: { box: 'w-9 h-[52px]', rank: 24, suit: 11 },
+  md: { box: 'w-12 h-[68px]', rank: 32, suit: 13 },
+  board: { box: 'w-[50px] h-[72px]', rank: 34, suit: 14 },
+  lg: { box: 'w-[58px] h-[82px]', rank: 40, suit: 16 },
+} as const;
+
 export function PlayingCard({
   card, size = 'md', delay = 0, glow = false, dim = false,
-}: { card: string | null; size?: 'sm' | 'md' | 'board' | 'lg'; delay?: number; glow?: boolean; dim?: boolean }) {
-  const dims = { sm: 'w-9 h-[52px] text-[15px]', md: 'w-12 h-[68px] text-[19px]', board: 'w-[50px] h-[72px] text-[20px]', lg: 'w-[58px] h-[82px] text-[23px]' }[size];
+}: { card: string | null; size?: keyof typeof DIMS; delay?: number; glow?: boolean; dim?: boolean }) {
+  const { fourColor } = useSettings();
+  const d = DIMS[size];
   if (!card) {
     return (
       <div
-        className={`${dims} deal rounded-[7px] border border-[#d9bf8c]/30 shadow-lg`}
+        className={`${d.box} deal rounded-[7px] border border-[#c4b8ff]/25 shadow-lg`}
         style={{
           animationDelay: `${delay}ms`,
-          background: 'repeating-linear-gradient(45deg,#1b1b21 0 4px,#15151a 4px 8px)',
-          boxShadow: 'inset 0 0 0 3px #0e0e12, 0 6px 16px rgba(0,0,0,.45)',
+          background: 'repeating-linear-gradient(45deg,#2b2456 0 4px,#221c48 4px 8px)',
+          boxShadow: 'inset 0 0 0 3px #120f28, 0 6px 16px rgba(0,0,0,.45)',
         }}
         aria-label="card"
       />
@@ -20,17 +31,40 @@ export function PlayingCard({
   }
   const r = RANK[card[0]] ?? card[0];
   const s = card[1];
-  const red = s === 'h' || s === 'd';
+  const face = cardFace(s, fourColor);
   return (
     <div
-      className={`${dims} deal relative flex flex-col items-start justify-between rounded-[7px] bg-[#f7f4ec] px-[5px] py-[3px] font-semibold shadow-[0_6px_16px_rgba(0,0,0,.45)] transition ${
+      className={`${d.box} deal relative overflow-hidden rounded-[6px] font-black shadow-[0_4px_12px_rgba(0,0,0,.45)] ring-1 ring-black/20 transition ${
         glow ? 'card-glow -translate-y-1.5' : ''
       } ${dim ? 'brightness-50' : ''}`}
-      style={{ animationDelay: `${delay}ms`, color: red ? 'var(--color-suit-red)' : '#16161a' }}
+      style={{ animationDelay: `${delay}ms`, color: face.fg, background: face.bg }}
       aria-label={`${r}${s}`}
     >
-      <span className="leading-none tracking-tight">{r}</span>
-      <span className="self-end text-[1.35em] leading-none">{SUIT[s]}</span>
+      <span className="absolute left-[4px] top-[2px] leading-none" style={{ fontSize: d.suit }}>
+        {SUIT[s]}
+      </span>
+      <span
+        className="absolute inset-x-0 bottom-[2px] text-center leading-none tracking-[-0.06em]"
+        style={{ fontSize: r === '10' ? d.rank * 0.82 : d.rank }}
+      >
+        {r}
+      </span>
     </div>
+  );
+}
+
+/** 一覧表示用の小さな文字カード（例: A♠） */
+export function MiniCard({ card, size = 'sm' }: { card: string; size?: 'sm' | 'md' }) {
+  const { fourColor } = useSettings();
+  const face = cardFace(card[1], fourColor);
+  const dims = size === 'md' ? 'h-[32px] min-w-[36px] text-[16px] rounded-[5px]' : 'h-[22px] min-w-[25px] text-[12px] rounded-[4px]';
+  return (
+    <span
+      className={`inline-flex items-center justify-center px-1 font-black leading-none shadow ${dims}`}
+      style={{ color: face.fg, background: face.bg }}
+    >
+      {RANK[card[0]] ?? card[0]}
+      {SUIT[card[1]]}
+    </span>
   );
 }

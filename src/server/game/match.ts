@@ -1,8 +1,10 @@
 import { RULES, blindLevel } from '../../shared/config';
-import type { ActionType, MatchMode, SeatView, TableState } from '../../shared/protocol';
+import { randomUUID } from 'node:crypto';
+import type { ActionType, CpuLevel, HandRecord, MatchMode, SeatView, TableState } from '../../shared/protocol';
 import { allInOdds } from '../../shared/cards';
 import { decideBot } from './bot';
 import { Hand } from './hand';
+import { seatStats } from './record';
 
 export interface Participant {
   userId: string;
@@ -11,6 +13,7 @@ export interface Participant {
   rating: number;
   isGuest: boolean;
   isCpu: boolean;
+  cpuLevel?: CpuLevel;
 }
 
 export type EndReason = 'bust' | 'forfeit' | 'disconnect';
@@ -18,10 +21,12 @@ export type EndReason = 'bust' | 'forfeit' | 'disconnect';
 export interface MatchHooks {
   emitState: (seat: number, state: TableState) => void;
   onEnd: (match: Match, winner: number, reason: EndReason) => void;
+  onHand: (match: Match, record: HandRecord) => void;
 }
 
 const PAUSE_DELAY = 1000; // アクション表示後、次のカードを配るまでの間
-const RUNOUT_DELAY = 1600;
+const RUNOUT_FIRST_DELAY = 2500; // オールイン: カード公開から最初にめくるまで
+const RUNOUT_DELAY = 3000; // オールイン: 次の1枚をめくるまで（勝率・アウツを見る時間）
 const RESULT_DELAY = 3200;
 const SHOWDOWN_DELAY = 5000;
 
@@ -41,7 +46,16 @@ export class Match {
   private deadline: number | null = null;
   private timeTotal: number | null = null;
   private usingTimebank = false;
+  private timebankArmed = false; // 手番の人がタイムバンクを予約中
   private odds: TableState['odds'] = null;
+  private runoutStarted = false;
+  private evAtAllIn: { equity: [number, number]; pot: number } | null = null; // オールインEV計算用
+  private handStartStacks: [number, number] = [0, 0];
+  /** 試合全体の席ごとの収支（bb） */
+  summary: [{ netBB: number; evBB: number }, { netBB: number; evBB: number }] = [
+    { netBB: 0, evBB: 0 },
+    { netBB: 0, evBB: 0 },
+  ];
   private level = blindLevel(0);
 
   constructor(
@@ -66,6 +80,9 @@ export class Match {
     this.handNo++;
     if (this.handNo > 1) this.button = 1 - this.button;
     this.level = blindLevel(this.levelIndex());
+    this.runoutStarted = false;
+    this.evAtAllIn = null;
+    this.handStartStacks = [...this.stacks];
     this.hand = new Hand({ stacks: this.stacks, button: this.button, ...this.level });
     this.step();
   }
@@ -77,7 +94,10 @@ export class Match {
     this.deadline = null;
     this.timeTotal = null;
     this.usingTimebank = false;
+    this.timebankArmed = false;
     this.odds = h.phase === 'runout' ? allInOdds(h.hole, h.board) : null;
+    // オールインが決まった瞬間の勝率を記録（EV収支に使う）
+    if (this.odds && !this.evAtAllIn) this.evAtAllIn = { equity: this.odds.equity, pot: h.totalPot };
 
     if (h.phase === 'betting' && h.toAct !== null) {
       const seat = h.toAct;
@@ -95,12 +115,17 @@ export class Match {
         this.step();
       }, PAUSE_DELAY);
     } else if (h.phase === 'runout') {
-      this.timer = setTimeout(() => {
-        h.runoutStep();
-        this.step();
-      }, RUNOUT_DELAY);
+      this.timer = setTimeout(
+        () => {
+          h.runoutStep();
+          this.step();
+        },
+        this.runoutStarted ? RUNOUT_DELAY : RUNOUT_FIRST_DELAY,
+      );
+      this.runoutStarted = true;
     } else if (h.phase === 'done') {
       this.stacks = [...h.stacks];
+      this.emitHandRecord(h);
       const delay = h.result?.byFold ? RESULT_DELAY : SHOWDOWN_DELAY;
       this.timer = setTimeout(() => {
         const busted = this.stacks.findIndex((s) => s <= 0);
@@ -111,22 +136,74 @@ export class Match {
     this.broadcast();
   }
 
-  /** 時間切れ: チェックできればチェック、できなければフォールド */
+  /** ハンド終了時: 履歴と成績用の記録を作って保存処理へ渡す */
+  private emitHandRecord(h: Hand) {
+    const r = h.result!;
+    const record: HandRecord = {
+      id: randomUUID(),
+      matchId: this.id,
+      mode: this.mode,
+      handNo: this.handNo,
+      at: Date.now(),
+      level: this.level.level,
+      sb: this.level.sb,
+      bb: this.level.bb,
+      ante: this.level.ante,
+      button: h.button,
+      players: [0, 1].map((s) => {
+        const p = this.players[s];
+        return { id: p.userId, name: p.name, avatar: p.avatar, isCpu: p.isCpu };
+      }) as HandRecord['players'],
+      startStacks: this.handStartStacks,
+      hole: h.hole,
+      shown: [h.cardsExposed, h.cardsExposed],
+      board: h.board.slice(),
+      log: h.log,
+      result: r,
+      seatStats: seatStats({
+        log: h.log,
+        invested: h.invested,
+        won: r.won,
+        bb: this.level.bb,
+        showdown: !r.byFold,
+        evEquity: this.evAtAllIn?.equity ?? null,
+        evPot: this.evAtAllIn?.pot ?? null,
+      }),
+    };
+    for (const s of [0, 1]) {
+      this.summary[s].netBB = Math.round((this.summary[s].netBB + record.seatStats[s].netBB) * 100) / 100;
+      this.summary[s].evBB = Math.round((this.summary[s].evBB + record.seatStats[s].evBB) * 100) / 100;
+    }
+    try {
+      this.hooks.onHand(this, record);
+    } catch (e) {
+      console.error('onHand failed', e);
+    }
+  }
+
+  /** 時間切れ: タイムバンク予約があればここで消費して+30秒、なければチェック/フォールド */
   private onTimeout(seat: number) {
     if (this.over || this.hand?.toAct !== seat) return;
+    if (this.timebankArmed && this.timebanks[seat] > 0 && this.connected[seat]) {
+      this.timebanks[seat]--;
+      this.timebankArmed = false;
+      this.usingTimebank = true;
+      this.deadline = Date.now() + RULES.timebankMs;
+      this.timeTotal = RULES.timebankMs;
+      this.timer = setTimeout(() => this.onTimeout(seat), RULES.timebankMs);
+      this.broadcast();
+      return;
+    }
     this.autoAct(seat);
   }
 
-  /** タイムバンクを自分で使う: 持ち時間に +30秒 */
+  /**
+   * タイムバンクを予約する（押した時点では消費しない）。
+   * 今の持ち時間が切れた時点で1回分を消費して+30秒。それまでにアクションすれば消費しない。
+   */
   useTimebank(seat: number): boolean {
-    if (this.over || this.hand?.toAct !== seat || this.hand.phase !== 'betting' || this.timebanks[seat] <= 0 || !this.deadline) return false;
-    this.timebanks[seat]--;
-    this.usingTimebank = true;
-    const left = Math.max(0, this.deadline - Date.now()) + RULES.timebankMs;
-    this.deadline = Date.now() + left;
-    this.timeTotal = left;
-    this.clearTimer();
-    this.timer = setTimeout(() => this.onTimeout(seat), left);
+    if (this.over || this.hand?.toAct !== seat || this.hand.phase !== 'betting' || this.timebanks[seat] <= 0 || this.timebankArmed) return false;
+    this.timebankArmed = true;
     this.broadcast();
     return true;
   }
@@ -140,7 +217,7 @@ export class Match {
 
   private botAct(seat: number) {
     if (this.over || this.hand?.toAct !== seat) return;
-    const d = decideBot(this.hand, seat);
+    const d = decideBot(this.hand, seat, this.players[seat].cpuLevel);
     if (!this.hand.act(seat, d.type, d.amount)) {
       const legal = this.hand.legal(seat)!;
       this.hand.act(seat, legal.canCheck ? 'check' : 'call');
@@ -204,6 +281,7 @@ export class Match {
         avatar: p.avatar,
         rating: p.isGuest && this.mode === 'friend' ? null : p.rating,
         isCpu: p.isCpu,
+        cpuLevel: p.isCpu ? (p.cpuLevel ?? 'normal') : null,
         isGuest: p.isGuest,
         stack: h.stacks[s],
         bet: h.bets[s],
@@ -233,10 +311,12 @@ export class Match {
       deadline: this.deadline,
       timeTotal: this.timeTotal,
       usingTimebank: this.usingTimebank,
+      timebankArmed: this.timebankArmed && this.hand?.toAct === viewer,
       odds: this.odds,
       legal: h.legal(viewer),
       lastAction: h.lastAction,
       result: h.result,
+      log: h.log,
       serverTime: Date.now(),
     };
   }

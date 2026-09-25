@@ -1,5 +1,5 @@
 import { evaluate, fullDeck, shuffle, type Card, type HandCategory } from '../../shared/cards';
-import type { ActionType, HandResult, LegalActions, Street } from '../../shared/protocol';
+import type { ActionType, HandResult, LegalActions, LogEntry, Street } from '../../shared/protocol';
 
 export interface HandConfig {
   stacks: [number, number];
@@ -27,6 +27,8 @@ export class Hand {
   folded: [boolean, boolean] = [false, false];
   result: HandResult | null = null;
   lastAction: { seat: number; type: ActionType; amount: number } | null = null;
+  invested: [number, number] = [0, 0]; // このハンドで各席が出した合計（返却分を除く）
+  log: LogEntry[] = [];
   readonly button: number;
   readonly bb: number;
 
@@ -48,12 +50,14 @@ export class Hand {
     const h1 = [this.draw(), this.draw()];
     this.hole = bbSeat === 0 ? [h0, h1] : [h1, h0];
 
-    this.pay(cfg.button, cfg.sb);
-    this.pay(bbSeat, cfg.bb);
+    this.record(cfg.button, 'sb', this.pay(cfg.button, cfg.sb));
+    this.record(bbSeat, 'bb', this.pay(bbSeat, cfg.bb));
     // BBアンテ（ブラインド優先。デッドマネーとしてポットへ）
     const ante = Math.min(cfg.ante, this.stacks[bbSeat]);
     this.stacks[bbSeat] -= ante;
+    this.invested[bbSeat] += ante;
     this.pot += ante;
+    if (ante > 0) this.record(bbSeat, 'ante', ante);
 
     this.currentBet = Math.max(...this.bets);
     this.toAct = cfg.button;
@@ -68,7 +72,29 @@ export class Hand {
     const a = Math.min(amount, this.stacks[seat]);
     this.stacks[seat] -= a;
     this.bets[seat] += a;
+    this.invested[seat] += a;
     return a;
+  }
+
+  private refund(seat: number, amount: number) {
+    this.bets[seat] -= amount;
+    this.stacks[seat] += amount;
+    this.invested[seat] -= amount;
+  }
+
+  /** ログに記録（その時点の状態のスナップショット付き） */
+  private record(seat: number | null, type: LogEntry['type'], add: number) {
+    this.log.push({
+      street: this.street,
+      seat,
+      type,
+      add,
+      to: seat === null ? 0 : this.bets[seat],
+      pot: this.totalPot,
+      stacks: [this.stacks[0], this.stacks[1]],
+      board: this.board.slice(),
+      allIn: seat !== null && this.stacks[seat] === 0 && !this.folded[seat],
+    });
   }
 
   private canAct(seat: number) {
@@ -104,16 +130,19 @@ export class Hand {
       case 'fold':
         this.folded[seat] = true;
         this.lastAction = { seat, type, amount: 0 };
+        this.record(seat, 'fold', 0);
         this.finishByFold(opp);
         return true;
       case 'check':
         if (!legal.canCheck) return false;
         this.lastAction = { seat, type, amount: 0 };
+        this.record(seat, 'check', 0);
         break;
       case 'call': {
         if (legal.canCheck) return false;
         const paid = this.pay(seat, legal.callAmount);
         this.lastAction = { seat, type, amount: paid };
+        this.record(seat, 'call', paid);
         break;
       }
       case 'raise': {
@@ -121,7 +150,7 @@ export class Hand {
         const to = Math.floor(amount);
         if (!Number.isFinite(to) || to < legal.minRaiseTo || to > legal.maxRaiseTo) return false;
         const raiseSize = to - this.currentBet;
-        this.pay(seat, to - this.bets[seat]);
+        const added = this.pay(seat, to - this.bets[seat]);
         if (raiseSize >= this.minRaise) {
           this.minRaise = raiseSize;
           this.reraiseLocked = [false, false];
@@ -132,6 +161,7 @@ export class Hand {
         this.currentBet = to;
         this.acted[opp] = false;
         this.lastAction = { seat, type, amount: to };
+        this.record(seat, 'raise', added);
         break;
       }
       default:
@@ -167,9 +197,7 @@ export class Hand {
     const [a, b] = this.bets;
     if (a !== b) {
       const hi = a > b ? 0 : 1;
-      const diff = Math.abs(a - b);
-      this.bets[hi] -= diff;
-      this.stacks[hi] += diff;
+      this.refund(hi, Math.abs(a - b));
     }
     this.pot += this.bets[0] + this.bets[1];
     this.bets = [0, 0];
@@ -204,6 +232,7 @@ export class Hand {
     this.street = next;
     if (next === 'flop') this.board.push(this.draw(), this.draw(), this.draw());
     else this.board.push(this.draw());
+    this.record(null, 'deal', 0);
   }
 
   /** オールイン後のランアウトを1ストリート進める */
@@ -218,6 +247,11 @@ export class Hand {
   }
 
   private finishByFold(winner: number) {
+    // コールされなかった自分のベットは「獲得額」に含めず、そのまま返却
+    const loser = 1 - winner;
+    if (this.bets[winner] > this.bets[loser]) {
+      this.refund(winner, this.bets[winner] - this.bets[loser]);
+    }
     const amount = this.totalPot;
     this.stacks[winner] += amount;
     this.bets = [0, 0];

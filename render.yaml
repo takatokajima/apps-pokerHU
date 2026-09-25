@@ -1,0 +1,17 @@
+# Render（https://render.com）用の設定。GitHub 連携で自動デプロイされる
+services:
+  - type: web
+    name: headsup-online
+    runtime: node
+    plan: free
+    branch: main
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/meta
+    envVars:
+      - key: NODE_VERSION
+        value: 24
+      - key: ACT_EPOCH
+        value: 2026-09-01
+      # Supabase を使う場合は Render の画面で以下を設定（未設定ならゲストのみで動作）
+      # SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY / VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY

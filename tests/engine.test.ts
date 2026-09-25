@@ -54,6 +54,13 @@ describe('Hand', () => {
     expect(h.totalPot).toBe(500);
     expect(h.toAct).toBe(0);
   });
+  it('オールインにフォールドされたら獲得額は相手の出した分だけ', () => {
+    const h = new Hand(cfg);
+    h.act(0, 'raise', h.legal(0)!.maxRaiseTo);
+    h.act(1, 'fold');
+    expect(h.result!.won[0]).toBe(600); // ポット = 両者200ずつ + アンテ200（コールされなかった分は含めない）
+    expect(h.stacks).toEqual([50400, 49600]);
+  });
   it('SBフォールドでBBが獲得', () => {
     const h = new Hand(cfg);
     h.act(0, 'fold');
@@ -139,7 +146,8 @@ describe('表示用の役・勝率', () => {
   it('フロップの勝率とアウツ（フラッシュドロー）', () => {
     const o = allInOdds([['As', 'Kd'], ['9h', '8h']], ['Ah', '2h', '7c']);
     expect(o.equity[0] + o.equity[1]).toBeCloseTo(100, 0);
-    expect(o.outs[1]).toBeGreaterThanOrEqual(9);
+    expect(o.outs[1]!.length).toBeGreaterThanOrEqual(9);
+    expect(o.outs[1]!.every((c) => c[1] === 'h' || c[0] === '9' || c[0] === '8')).toBe(true);
     expect(o.outs[0]).toBeNull();
   });
 });

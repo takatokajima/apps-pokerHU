@@ -21,3 +21,16 @@ http://localhost:5173 を開く。同じWi-FiのスマホからはPCのIPアド�
 npm run build
 npm start
 ```
+
+## インターネットに公開する（Render・無料）
+GitHub Pages は画面ファイルを配るだけなので、対戦サーバーが必要なこのアプリは動かせません。
+Render の無料プランなら、GitHub と連携してプッシュのたびに自動で公開されます。
+
+1. https://render.com に GitHub アカウントでサインアップ
+2. ダッシュボードの「New +」→「Blueprint」→ このリポジトリを選ぶ（`render.yaml` が読み込まれる）
+3. 「Apply」で作成。数分で `https://headsup-online-xxxx.onrender.com` のような URL で公開される
+
+注意（無料プラン）
+- 15分アクセスがないと停止し、次のアクセス時の起動に30秒〜1分かかる
+- データベース未設定の間は全員ゲスト扱い。サーバーの再起動・再デプロイで記録（レート・履歴）は消える
+- ログインや記録を残したくなったら Supabase を設定する（上の手順）

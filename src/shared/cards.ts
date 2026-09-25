@@ -157,7 +157,7 @@ export function bestHand(cards: Card[]): BestHand | null {
 }
 
 /** オールイン時の勝率（%）とアウツ。ボード3枚以上は全通り計算、プリフロップはサンプリング */
-export function allInOdds(holes: [Card[], Card[]], board: Card[]): { equity: [number, number]; outs: [number | null, number | null] } {
+export function allInOdds(holes: [Card[], Card[]], board: Card[]): { equity: [number, number]; outs: [Card[] | null, Card[] | null] } {
   const known = new Set([...holes[0], ...holes[1], ...board]);
   const rest = fullDeck().filter((c) => !known.has(c));
   const need = 5 - board.length;
@@ -176,19 +176,20 @@ export function allInOdds(holes: [Card[], Card[]], board: Card[]): { equity: [nu
   else for (let i = 0; i < 20000; i++) score(shuffle(rest).slice(0, need));
   const equity: [number, number] = [Math.round((tally[0] / total) * 1000) / 10, Math.round((tally[1] / total) * 1000) / 10];
 
-  // アウツ: 負けている側が「次の1枚」で逆転できるカードの枚数
-  const outs: [number | null, number | null] = [null, null];
+  // アウツ: 負けている側が「次の1枚」で逆転できるカード
+  const outs: [Card[] | null, Card[] | null] = [null, null];
   if (board.length === 3 || board.length === 4) {
     const cur = [0, 1].map((s) => evaluate([...holes[s], ...board]).score);
     if (cur[0] !== cur[1]) {
       const behind = cur[0] < cur[1] ? 0 : 1;
-      let n = 0;
+      const list: Card[] = [];
       for (const c of rest) {
         const me = evaluate([...holes[behind], ...board, c]).score;
         const op = evaluate([...holes[1 - behind], ...board, c]).score;
-        if (me > op) n++;
+        if (me > op) list.push(c);
       }
-      outs[behind] = n;
+      // 強いランク順に並べる
+      outs[behind] = list.sort((a, b) => rankOf(b) - rankOf(a) || SUITS.indexOf(a[1]) - SUITS.indexOf(b[1]));
     }
   }
   return { equity, outs };

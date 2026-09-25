@@ -1,82 +1,123 @@
+import { Trophy } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import type { LeaderboardEntry } from '../../shared/protocol';
-import { Avatar } from '../components/Avatar';
+import type { LeaderboardEntry, LeaderboardTab } from '../../shared/protocol';
+import { AppShell } from '../components/AppShell';
+import { XBadge } from '../components/XBadge';
 import { fmt, useT } from '../lib/i18n';
-import { go, useApp } from '../lib/store';
+import { useApp } from '../lib/store';
+
+type Span = 'weekly' | 'act';
 
 export function Leaderboard() {
   const { t } = useT();
   const me = useApp((s) => s.me);
+  const [span, setSpan] = useState<Span>('act');
+  const [metric, setMetric] = useState<'rating' | 'wins'>('rating');
   const [data, setData] = useState<{ act: number; entries: LeaderboardEntry[] } | null>(null);
+  const [updated, setUpdated] = useState('');
+
+  // 期間 × 指標 → サーバーのタブ
+  const tab: LeaderboardTab = span === 'weekly' ? 'week' : metric === 'rating' ? 'rating' : 'actWins';
 
   useEffect(() => {
-    fetch('/api/leaderboard').then((r) => r.json()).then(setData).catch(() => setData({ act: 0, entries: [] }));
-  }, []);
+    setData(null);
+    fetch(`/api/leaderboard?tab=${tab}`)
+      .then((r) => r.json())
+      .then((d) => {
+        setData(d);
+        const n = new Date();
+        setUpdated(`${String(n.getHours()).padStart(2, '0')}:${String(n.getMinutes()).padStart(2, '0')}`);
+      })
+      .catch(() => setData({ act: 0, entries: [] }));
+  }, [tab]);
 
   const mine = data?.entries.find((e) => e.id === me?.id);
+  const valueCell = (e: LeaderboardEntry) =>
+    tab === 'rating' ? (
+      <span className="text-[17px] font-bold text-[var(--color-gold)] tabular-nums">{fmt(e.value)}</span>
+    ) : (
+      <span className="text-[17px] font-bold text-[var(--color-win)] tabular-nums">
+        {fmt(e.value)}
+        <span className="ml-0.5 text-[12px] text-white/50">{t('wins')}</span>
+      </span>
+    );
 
   return (
-    <div className="safe-top mx-auto flex h-full max-w-md flex-col">
-      <header className="px-5 py-2">
-        <button onClick={() => go('home')} className="py-2 text-[15px] text-[var(--color-gold)]">
-          ‹ {t('back')}
-        </button>
-        <div className="mt-2 flex items-baseline justify-between">
-          <div>
-            <div className="text-[12px] font-semibold uppercase tracking-[.2em] text-[var(--color-gold)]">{t('ranked')}</div>
-            <h1 className="text-[32px] font-bold tracking-tight">{t('leaderboard')}</h1>
+    <AppShell>
+      <div className="rise mt-2 rounded-xl bg-[#15122b] p-4 ring-1 ring-[#c4b8ff]/10">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 text-[15px] font-bold">
+            <Trophy size={17} />
+            Leaderboard
           </div>
-          {data && <span className="text-[13px] text-[var(--color-mist)]">Act.{data.act} · TOP 1000</span>}
+          {updated && <span className="text-[11px] text-white/40">Updated: {updated}</span>}
         </div>
-      </header>
 
-      <div className="flex-1 overflow-y-auto px-5 pb-32">
-        {!data && <div className="py-20 text-center text-[var(--color-mist)] breathe">…</div>}
-        {data && data.entries.length === 0 && <div className="py-20 text-center text-[var(--color-mist)]">{t('noEntries')}</div>}
-        <ol className="flex flex-col">
-          {data?.entries.map((e, i) => (
+        {/* 期間タブ */}
+        <div className="mt-3 grid grid-cols-2 rounded-lg bg-[#2a2645] p-1" role="tablist">
+          {(['weekly', 'act'] as const).map((k) => (
+            <button
+              key={k}
+              role="tab"
+              aria-selected={span === k}
+              onClick={() => setSpan(k)}
+              className={`rounded-md py-2 text-[14px] font-bold tracking-wider ${span === k ? 'bg-[#1f9a58] text-white' : 'text-[var(--color-mist)]'}`}
+            >
+              {k === 'weekly' ? 'WEEKLY' : 'ACT'}
+            </button>
+          ))}
+        </div>
+        <div className="mt-2 text-center text-[14px] font-bold">{span === 'weekly' ? t('thisWeek') : `Act.${data?.act ?? '–'}`}</div>
+
+        {/* 指標タブ（下線） */}
+        <div className="mt-1 grid grid-cols-2 border-b border-white/10">
+          {(span === 'act' ? (['rating', 'wins'] as const) : (['wins'] as const)).map((k) => (
+            <button
+              key={k}
+              onClick={() => setMetric(k)}
+              className={`-mb-px border-b-2 py-2 text-[14px] font-bold ${
+                (span === 'weekly' || metric === k) ? 'border-[#34d27b] text-white' : 'border-transparent text-[var(--color-mist)]'
+              } ${span === 'weekly' ? 'col-span-2' : ''}`}
+            >
+              {k === 'rating' ? t('rating') : t('winsLabel')}
+            </button>
+          ))}
+        </div>
+        <p className="mt-2 text-[12px] text-[var(--color-mist)]">{t('aggregateTarget')}</p>
+
+        <ol className="mt-2 flex flex-col gap-1.5">
+          {!data && <div className="breathe py-16 text-center text-[var(--color-mist)]">…</div>}
+          {data && data.entries.length === 0 && <p className="py-16 text-center text-[14px] text-[var(--color-mist)]">{t('noEntries')}</p>}
+          {data?.entries.map((e) => (
             <li
               key={e.id}
-              className={`rise flex items-center gap-3 border-b border-white/[.06] py-3 ${e.id === me?.id ? 'text-[var(--color-gold)]' : ''}`}
-              style={{ animationDelay: `${Math.min(i, 15) * 30}ms` }}
+              className={`flex items-center gap-3 rounded-lg px-3 py-3 ${e.rank <= 3 ? 'bg-[#3a3560]' : 'bg-[#2a2645]'} ${e.id === me?.id ? 'ring-1 ring-[var(--color-gold)]' : ''}`}
             >
-              <span
-                className={`w-10 text-center tabular-nums ${
-                  e.rank <= 3 ? 'font-display text-[26px] text-[var(--color-gold)]' : 'text-[15px] text-[var(--color-mist)]'
-                }`}
-              >
-                {e.rank}
+              <span className={`w-8 text-center font-bold tabular-nums ${e.rank <= 3 ? 'text-[20px] text-[#34d27b]' : e.rank <= 10 ? 'text-[18px]' : 'text-[15px]'}`}>{e.rank}</span>
+              <span className="flex min-w-0 flex-1 items-center gap-1.5">
+                <span className="truncate text-[15px] font-bold">{e.name}</span>
+                <XBadge handle={e.xHandle} size={20} />
               </span>
-              <Avatar id={e.avatar} size={36} />
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-[15px] font-medium">{e.name}</div>
-                <div className="text-[11.5px] text-[var(--color-mist)] tabular-nums">
-                  {e.wins}
-                  {t('wins')} {e.games - e.wins}
-                  {t('losses')}
-                </div>
-              </div>
-              <span className="font-display text-[22px] tabular-nums">{fmt(e.rating)}</span>
+              <span className="text-right leading-tight">
+                {valueCell(e)}
+                <span className="block text-[11px] text-white/45 tabular-nums">
+                  {fmt(e.games)} {t('matchesUnit')}
+                </span>
+              </span>
             </li>
           ))}
         </ol>
-      </div>
 
-      {me && (
-        <div className="glass safe-bottom fixed inset-x-0 bottom-0 mx-auto max-w-md rounded-t-3xl px-5 pt-4">
-          <div className="flex items-center gap-3">
-            <span className="w-10 text-center text-[13px] text-[var(--color-mist)]">{mine ? mine.rank : '—'}</span>
-            <Avatar id={me.avatar} size={36} />
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-[15px] font-medium">{me.name}</div>
-              <div className="text-[11.5px] text-[var(--color-mist)]">
-                {me.isGuest ? t('guestNotRanked') : mine ? `${t('yourRank')} ${mine.rank}${t('rank')}` : t('unranked')}
-              </div>
-            </div>
-            <span className="font-display text-[22px] tabular-nums text-[var(--color-gold)]">{fmt(me.rating)}</span>
+        {me && (
+          <div className="mt-3 flex items-center gap-3 rounded-lg bg-black/25 px-3 py-2.5 text-[13px]">
+            <span className="shrink-0 whitespace-nowrap text-[var(--color-mist)]">{t('yourRank')}</span>
+            <span className="font-bold">
+              {me.isGuest ? t('guestNotRanked') : mine ? `${mine.rank}${t('rank')}` : t('unranked')}
+            </span>
+            <span className="ml-auto font-bold text-[var(--color-gold)] tabular-nums">{fmt(me.rating)}</span>
           </div>
-        </div>
-      )}
-    </div>
+        )}
+      </div>
+    </AppShell>
   );
 }
