@@ -76,3 +76,11 @@
   - チェックレイズ: 上位10%のバリュー＋ドローのセミブラフ
 - 計測（1500ハンド, KING同士）: Cベット73% / Cベットへのフォールド26% / レイズ11% / BBディフェンス74% / 3ベット15%
 - 対戦（150試合）: KING vs JACK 83%、KING vs QUEEN 59%
+
+## デプロイ方針（2026-09-25）
+- Vercel は常時接続のサーバー（Socket.IO）を置けないため、Vercel 版は「オフライン版」: CPU戦をブラウザ内（src/client/lib/localServer.ts）で完結
+- Vercel のビルドでは VERCEL=1 → vite の define で __OFFLINE__=true。ローカル dev / Render はサーバー版のまま（OFFLINE=1 で手動切替も可）
+- オフライン版: ランクマ・フレンド・ランキングは「準備中」表示。成績・ハンド履歴・プロフィールは localStorage（直近150ハンド）
+- 対人戦を公開するときは、ゲームサーバーを Render 等に置く（render.yaml あり）か、Supabase Realtime 等に作り替える
+- スターティングハンドの順位表は src/shared/handRanks.json（再生成: npx tsx scripts/make-hand-ranks.ts）
+- Vercel プロジェクト名 pokerapps（アカウント takatokajima-2097）。本番URL https://pokerapps.vercel.app 、デプロイは `vercel --prod --yes`
