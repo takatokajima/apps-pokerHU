@@ -1,5 +1,5 @@
 import { ArrowLeft, Crown, Eye, Flag, Layers, Play } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 import { bestHand, type BestHand } from '../../shared/cards';
 import type { CpuLevel, LogEntry, SeatView, TableState } from '../../shared/protocol';
 import { Avatar } from '../components/Avatar';
@@ -38,7 +38,7 @@ function SeatPlate({ seat, seatIdx, mine, state, now, winner }: { seat: SeatView
         <span className="absolute -left-3 -top-2 z-10 grid h-6 w-6 place-items-center rounded-full bg-white text-[11px] font-black text-[#0c0a1c] shadow">D</span>
       )}
       <div
-        className={`min-w-[156px] rounded-lg bg-[#0b0a18] px-3 py-1.5 text-center transition ${seat.folded || !seat.connected ? 'opacity-50' : ''} ${
+        className={`min-w-[156px] rounded-lg bg-[#0b0a18] px-3 py-1.5 text-center short:py-1 transition ${seat.folded || !seat.connected ? 'opacity-50' : ''} ${
           acting ? 'ring-2 ring-[var(--color-win)] shadow-[0_0_18px_rgba(52,210,123,.45)]' : winner ? 'ring-2 ring-[var(--color-gold)]' : 'ring-1 ring-[#c4b8ff]/20'
         }`}
       >
@@ -136,7 +136,7 @@ function SideRow({ state, seatIdx }: { state: TableState; seatIdx: number }) {
   const amt = useAmount(state.bb);
   const seat = state.seats[seatIdx];
   return (
-    <div className="flex min-h-[34px] flex-col items-center justify-center gap-1">
+    <div className="flex min-h-[34px] flex-col items-center justify-center gap-1 tiny:min-h-[26px]">
       <OddsBadge state={state} seatIdx={seatIdx} />
       {(seat.bet > 0 || (state.lastAction?.seat === seatIdx && !state.odds)) && (
         <div className="flex items-center gap-2">
@@ -192,7 +192,7 @@ function ActionBar({ state }: { state: TableState }) {
   return (
     <div className="pop">
       {/* ゲージ（ベット額の微調整） + タイムバンク */}
-      <div className="mb-2 flex h-9 items-center gap-3">
+      <div className="mb-2 flex h-9 items-center gap-3 short:mb-1.5 short:h-8">
         <input
           type="range"
           className={`min-w-0 flex-1 ${legal.canRaise ? '' : 'pointer-events-none opacity-30'}`}
@@ -207,12 +207,12 @@ function ActionBar({ state }: { state: TableState }) {
         <TimebankButton state={state} />
       </div>
       {/* ベット額: 常に表示（ワンタップで選択・直接入力も可） */}
-      <div className={`mb-2 flex gap-1.5 ${legal.canRaise ? '' : 'pointer-events-none opacity-30'}`}>
+      <div className={`mb-2 flex gap-1.5 short:mb-1.5 ${legal.canRaise ? '' : 'pointer-events-none opacity-30'}`}>
         {presets.map((p, i) => (
           <button
             key={i}
             onClick={() => setRaiseTo(p.v)}
-            className={`h-10 flex-1 rounded-lg text-[14px] font-bold tabular-nums transition active:scale-95 ${
+            className={`h-10 flex-1 rounded-lg text-[14px] short:h-9 tiny:h-8 font-bold tabular-nums transition active:scale-95 ${
               raiseTo === p.v && !isAllIn ? 'bg-white text-[#0c0a1c]' : 'bg-[#2e2a4d] text-white'
             }`}
           >
@@ -221,7 +221,7 @@ function ActionBar({ state }: { state: TableState }) {
         ))}
         <button
           onClick={() => setRaiseTo(legal.maxRaiseTo)}
-          className={`h-10 flex-1 whitespace-nowrap rounded-lg text-[11px] font-bold tracking-tight transition active:scale-95 ${
+          className={`h-10 flex-1 whitespace-nowrap rounded-lg text-[11px] short:h-9 tiny:h-8 font-bold tracking-tight transition active:scale-95 ${
             isAllIn ? 'bg-white text-[#0c0a1c]' : 'bg-[#2e2a4d] text-[var(--color-gold)]'
           }`}
         >
@@ -237,7 +237,7 @@ function ActionBar({ state }: { state: TableState }) {
           onChange={(e) => setDraft(e.target.value.replace(/[^0-9.,]/g, ''))}
           onBlur={commitDraft}
           onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
-          className="h-10 w-[70px] rounded-lg bg-[#0b0a18] text-center text-[15px] font-bold text-white tabular-nums ring-1 ring-[#c4b8ff]/25 outline-none focus:ring-2 focus:ring-white"
+          className="h-10 w-[70px] rounded-lg short:h-9 tiny:h-8 bg-[#0b0a18] text-center text-[15px] font-bold text-white tabular-nums ring-1 ring-[#c4b8ff]/25 outline-none focus:ring-2 focus:ring-white"
           aria-label={settings.bbMode ? `${verb} (BB)` : verb}
         />
       </div>
@@ -246,13 +246,13 @@ function ActionBar({ state }: { state: TableState }) {
         <button
           onClick={() => act('fold')}
           disabled={legal.canCheck}
-          className="h-[58px] rounded-lg bg-[#2e2a4d] text-[16px] font-bold text-white transition active:scale-95 disabled:opacity-25"
+          className="h-[58px] short:h-[50px] tiny:h-[46px] rounded-lg bg-[#2e2a4d] text-[16px] font-bold text-white transition active:scale-95 disabled:opacity-25"
         >
           {t('fold')}
         </button>
         <button
           onClick={() => act(legal.canCheck ? 'check' : 'call')}
-          className="flex h-[58px] flex-col items-center justify-center rounded-lg bg-[#22a55e] text-white transition active:scale-95"
+          className="flex h-[58px] short:h-[50px] tiny:h-[46px] flex-col items-center justify-center rounded-lg bg-[#22a55e] text-white transition active:scale-95"
         >
           <span className="text-[16px] font-bold leading-tight">{legal.canCheck ? t('check') : t('call')}</span>
           {!legal.canCheck && <span className="text-[13px] font-bold leading-tight tabular-nums opacity-90">{amt(legal.callAmount)}</span>}
@@ -260,7 +260,7 @@ function ActionBar({ state }: { state: TableState }) {
         <button
           onClick={() => act('raise', raiseTo)}
           disabled={!legal.canRaise}
-          className="flex h-[58px] flex-col items-center justify-center rounded-lg bg-[#e5484d] text-white transition active:scale-95 disabled:opacity-25"
+          className="flex h-[58px] short:h-[50px] tiny:h-[46px] flex-col items-center justify-center rounded-lg bg-[#e5484d] text-white transition active:scale-95 disabled:opacity-25"
         >
           <span className="text-[16px] font-bold leading-tight">{isAllIn ? t('allIn') : `${verb} ${sizeLabel}`}</span>
           <span className="text-[13px] font-bold leading-tight tabular-nums opacity-90">{amt(raiseTo)}</span>
@@ -335,7 +335,7 @@ function ActionLog({ state }: { state: TableState }) {
   return (
     <div
       ref={ref}
-      className="mt-2 flex h-8 shrink-0 items-center gap-2 overflow-x-auto whitespace-nowrap rounded-lg bg-[#0b0a18] px-3 ring-1 ring-[#c4b8ff]/15 [scrollbar-width:none]"
+      className="mt-2 flex h-8 shrink-0 items-center short:mt-1.5 tiny:hidden gap-2 overflow-x-auto whitespace-nowrap rounded-lg bg-[#0b0a18] px-3 ring-1 ring-[#c4b8ff]/15 [scrollbar-width:none]"
     >
       {items}
     </div>
@@ -464,6 +464,28 @@ function ResultSheet() {
 // 対戦カードを表示済みの試合（再描画で何度も出さないため）
 const introShown = new Set<string>();
 
+/**
+ * 表示領域に収まらないとき（背の低いスマホで勝率・アウツが出た時など）だけ、中身を縮小して重なりを防ぐ
+ */
+function useFitHeight() {
+  const area = useRef<HTMLDivElement>(null);
+  const content = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const a = area.current;
+    const c = content.current;
+    if (!a || !c) return;
+    c.style.transform = '';
+    c.style.height = '100%';
+    const have = a.clientHeight;
+    const need = c.scrollHeight;
+    if (need > have + 1) {
+      c.style.height = `${need}px`;
+      c.style.transform = `scale(${have / need})`;
+    }
+  });
+  return { area, content };
+}
+
 export function Table() {
   const { t } = useT();
   const state = useApp((s) => s.table);
@@ -473,6 +495,7 @@ export function Table() {
   const [menu, setMenu] = useState(false);
   const [intro, setIntro] = useState<string | null>(null);
   const amt = useAmount(state?.bb ?? 200);
+  const fit = useFitHeight();
 
   // 試合開始直後だけ対戦カードを表示（約2.8秒、タップで閉じる）
   useEffect(() => {
@@ -509,7 +532,7 @@ export function Table() {
   return (
     <div className="safe-top safe-bottom mx-auto flex h-full max-w-md flex-col px-3">
       {/* 上部 */}
-      <div className="relative flex shrink-0 items-center justify-between py-1">
+      <div className="relative z-30 flex h-11 shrink-0 items-start justify-between pt-1 short:h-0 short:pt-0">
         <button onClick={() => setMenu((v) => !v)} className="glass grid h-9 w-9 place-items-center rounded-full text-[16px]" aria-label="menu">
           ⋯
         </button>
@@ -539,15 +562,15 @@ export function Table() {
       </div>
 
       {/* テーブル（上から順に積むので要素同士が重ならない） */}
-      <div className="relative min-h-0 flex-1">
+      <div ref={fit.area} className="relative min-h-0 flex-1">
         {/* 背景の楕円: 相手の名札の中央〜自分の名札の中央 */}
         <div className="table-stage" style={{ top: 84, bottom: 46, left: 8, right: 8 }}>
           <div className="poker-table" />
         </div>
 
-        <div className="relative z-10 flex h-full flex-col">
+        <div ref={fit.content} className="relative z-10 flex h-full origin-top flex-col">
           {/* 相手: カード（横に役名）→ 名札 */}
-          <div className="flex h-[128px] shrink-0 flex-col items-center justify-end">
+          <div className="flex h-[128px] shrink-0 flex-col items-center justify-end tiny:h-[112px]">
             <div className="relative mb-1 flex gap-1">
               {!opp.folded &&
                 (opp.cards ?? [null, null]).map((c, i) => (
@@ -561,7 +584,7 @@ export function Table() {
           </div>
 
           {/* フェルトの上 */}
-          <div className="flex min-h-0 flex-1 flex-col items-center justify-between py-2">
+          <div className="flex min-h-fit flex-1 flex-col items-center justify-between py-2 short:py-1 tiny:py-0">
             <SideRow state={state} seatIdx={oppIdx} />
 
             <div className="flex flex-col items-center">
@@ -580,12 +603,12 @@ export function Table() {
                   {Math.floor(levelLeft / 60000)}:{String(Math.floor((levelLeft % 60000) / 1000)).padStart(2, '0')}
                 </span>
               </div>
-              <div className="mt-2 flex h-[72px] gap-1">
+              <div className="mt-2 flex h-[72px] gap-1 short:mt-1.5 short:h-[64px] tiny:h-[58px]">
                 {state.board.map((c, i) => (
                   <PlayingCard key={`${state.handNo}-b${i}`} card={c} size="board" delay={(i < 3 ? i : 0) * 110} glow={glow.has(c)} />
                 ))}
                 {Array.from({ length: 5 - state.board.length }).map((_, i) => (
-                  <div key={`e${i}`} className="h-[72px] w-[50px] rounded-[6px] bg-white/[.06] ring-1 ring-white/[.06]" />
+                  <div key={`e${i}`} className="h-[72px] w-[50px] rounded-[6px] bg-white/[.06] ring-1 ring-white/[.06] short:h-[64px] short:w-[46px] tiny:h-[58px] tiny:w-[42px]" />
                 ))}
               </div>
               {r && (
@@ -621,11 +644,11 @@ export function Table() {
       </div>
 
       {/* 操作エリア（高さを固定して、手番が変わっても画面が動かないように） */}
-      <div className="relative z-40 mt-2 min-h-[154px] shrink-0">
+      <div className="relative z-40 mt-2 min-h-[154px] shrink-0 short:mt-1 short:min-h-[130px] tiny:min-h-[122px]">
         {myTurn ? (
           <ActionBar key={`${state.handNo}-${state.street}-${state.lastAction?.amount ?? 0}`} state={state} />
         ) : (
-          <div className="grid h-[154px] place-items-center text-[13px] text-white/30">{state.toAct !== null ? t('thinking') : ''}</div>
+          <div className="grid h-[154px] place-items-center text-[13px] text-white/30 short:h-[130px] tiny:h-[122px]">{state.toAct !== null ? t('thinking') : ''}</div>
         )}
       </div>
       <ActionLog state={state} />
