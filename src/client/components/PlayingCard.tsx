@@ -54,12 +54,13 @@ export function PlayingCard({
 }
 
 /** 一覧表示用の小さな文字カード（例: A♠） */
-export function MiniCard({ card }: { card: string }) {
+export function MiniCard({ card, size = 'sm' }: { card: string; size?: 'sm' | 'md' }) {
   const { fourColor } = useSettings();
   const face = cardFace(card[1], fourColor);
+  const dims = size === 'md' ? 'h-[32px] min-w-[36px] text-[16px] rounded-[5px]' : 'h-[22px] min-w-[25px] text-[12px] rounded-[4px]';
   return (
     <span
-      className="inline-flex h-[22px] min-w-[25px] items-center justify-center rounded-[4px] px-1 text-[12px] font-black leading-none shadow"
+      className={`inline-flex items-center justify-center px-1 font-black leading-none shadow ${dims}`}
       style={{ color: face.fg, background: face.bg }}
     >
       {RANK[card[0]] ?? card[0]}

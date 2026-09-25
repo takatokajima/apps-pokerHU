@@ -1,6 +1,7 @@
 import type { Card, HandCategory } from './cards';
 
 export type MatchMode = 'ranked' | 'friend' | 'cpu';
+export type CpuLevel = 'weak' | 'normal' | 'strong';
 export type Street = 'preflop' | 'flop' | 'turn' | 'river' | 'showdown';
 export type ActionType = 'fold' | 'check' | 'call' | 'raise';
 
@@ -95,7 +96,9 @@ export interface MatchRecord {
 export interface StatsPayload {
   stats: UserStats;
   ratingSeries: { at: number; rating: number }[];
-  profitSeries: { net: number; ev: number; sd: number; nsd: number }[]; // 累積（bb）
+  // 1ハンドごとの要約（古い順、CPU戦を除く）。期間で絞り込んで成績とグラフを作る
+  hands: { at: number; net: number; ev: number; sd: boolean; vpip: boolean; pfr: boolean; tbo: boolean; tb: boolean }[];
+  firstPlayAt: number | null;
   matches: (MatchRecord & { you: number })[];
 }
 
@@ -104,6 +107,7 @@ export interface SeatView {
   avatar: string;
   rating: number | null;
   isCpu: boolean;
+  cpuLevel: CpuLevel | null;
   isGuest: boolean;
   stack: number;
   bet: number;
@@ -148,6 +152,7 @@ export interface TableState {
   deadline: number | null;
   timeTotal: number | null; // 現在のカウントダウンの長さ（リング表示用）
   usingTimebank: boolean;
+  timebankArmed: boolean; // 自分がタイムバンクを予約中（持ち時間が切れたら消費）
   odds: { equity: [number, number]; outs: [Card[] | null, Card[] | null] } | null; // オールイン時の勝率・アウツ
   legal: LegalActions | null;
   lastAction: { seat: number; type: ActionType; amount: number } | null;
@@ -162,6 +167,7 @@ export interface MatchEnd {
   youWon: boolean;
   reason: 'bust' | 'forfeit' | 'disconnect';
   rating: { before: number; after: number; delta: number } | null;
+  summary: { hands: number; durationMs: number; netBB: number; evBB: number }; // この試合の自分の成績
 }
 
 export type LeaderboardTab = 'rating' | 'week' | 'actWins';
@@ -192,9 +198,10 @@ export interface ClientToServer {
   'profile:update': (p: { name?: string; avatar?: string; xHandle?: string | null }) => void;
   'stats:get': (ack: (p: StatsPayload) => void) => void;
   'hands:list': (matchId: string, ack: (hands: HandRecord[]) => void) => void;
+  'hands:recent': (ack: (hands: HandRecord[]) => void) => void;
   'queue:join': () => void;
   'queue:leave': () => void;
-  'cpu:start': () => void;
+  'cpu:start': (level: CpuLevel) => void;
   'friend:join': (code: string) => void;
   'friend:leave': () => void;
   'game:action': (a: { type: ActionType; amount?: number }) => void;

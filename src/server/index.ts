@@ -10,6 +10,7 @@ import {
   AVATARS,
   type ClientToServer,
   type HandRecord,
+  type CpuLevel,
   type LeaderboardTab,
   type MatchRecord,
   type ServerToClient,
@@ -18,6 +19,7 @@ import {
 } from '../shared/protocol';
 import { actInfo, ratingDelta } from '../shared/rating';
 import { Match, type Participant } from './game/match';
+import { handPercentile } from './game/bot';
 import { addHand } from './game/record';
 import { newUser, rollAct, store, supabaseAdmin } from './store';
 
@@ -153,6 +155,17 @@ io.on('connection', (socket: Sock) => {
     }
   });
 
+  socket.on('hands:recent', async (ack) => {
+    if (typeof ack !== 'function') return;
+    try {
+      const hands = await store.handsByUser(userId, 100);
+      ack(hands.reverse().map((h) => maskHand(h, userId)));
+    } catch (e) {
+      console.error('hands recent error', e);
+      ack([]);
+    }
+  });
+
   socket.on('queue:join', () => {
     if (s.matchId || s.friendCode) return;
     s.queuedAt ??= Date.now();
@@ -164,11 +177,12 @@ io.on('connection', (socket: Sock) => {
     socket.emit('queue:status', { searching: false, since: 0, cpuOfferAfter: CPU_OFFER_MS });
   });
 
-  socket.on('cpu:start', () => {
+  socket.on('cpu:start', (level) => {
     if (s.matchId) return;
+    const lv: CpuLevel = level === 'weak' || level === 'strong' ? level : 'normal';
     s.queuedAt = null;
     leaveFriend(s);
-    startMatch('cpu', s, null);
+    startMatch('cpu', s, null, lv);
   });
 
   socket.on('friend:join', (raw) => {
@@ -275,7 +289,7 @@ function participant(s: Session): Participant {
   return { userId: u.id, name: u.name, avatar: u.avatar, rating: u.rating, isGuest: u.isGuest, isCpu: false };
 }
 
-function startMatch(mode: 'ranked' | 'friend' | 'cpu', a: Session, b: Session | null) {
+function startMatch(mode: 'ranked' | 'friend' | 'cpu', a: Session, b: Session | null, cpuLevel: CpuLevel = 'normal') {
   const id = randomUUID();
   const cpu: Participant = {
     userId: `cpu:${id}`,
@@ -284,6 +298,7 @@ function startMatch(mode: 'ranked' | 'friend' | 'cpu', a: Session, b: Session | 
     rating: a.user.rating,
     isGuest: false,
     isCpu: true,
+    cpuLevel,
   };
   const players: [Participant, Participant] = [participant(a), b ? participant(b) : cpu];
   const match = new Match(id, mode, players, {
@@ -328,19 +343,14 @@ async function buildStats(user: UserProfile): Promise<StatsPayload> {
     })
     .filter((x): x is { at: number; rating: number } => !!x)
     .reverse();
-  let net = 0, ev = 0, sd = 0, nsd = 0;
-  const profitSeries = hands
+  const rows = hands
     .filter((h) => h.mode !== 'cpu')
     .map((h) => {
       const st = h.seatStats[h.players.findIndex((p) => p.id === user.id)];
-      net += st.netBB;
-      ev += st.evBB;
-      if (st.showdown) sd += st.netBB;
-      else nsd += st.netBB;
-      const r2 = (n: number) => Math.round(n * 100) / 100;
-      return { net: r2(net), ev: r2(ev), sd: r2(sd), nsd: r2(nsd) };
+      return { at: h.at, net: st.netBB, ev: st.evBB, sd: st.showdown, vpip: st.vpip, pfr: st.pfr, tbo: st.threeBetOpp, tb: st.threeBet };
     });
-  return { stats: user.stats, ratingSeries, profitSeries, matches: matches.map((m) => ({ ...m, you: m.players.indexOf(user.id) })) };
+  const firstPlayAt = rows[0]?.at ?? null;
+  return { stats: user.stats, ratingSeries, hands: rows, firstPlayAt, matches: matches.map((m) => ({ ...m, you: m.players.indexOf(user.id) })) };
 }
 
 async function endMatch(m: Match, winner: number, reason: 'bust' | 'forfeit' | 'disconnect') {
@@ -389,7 +399,14 @@ async function endMatch(m: Match, winner: number, reason: 'bust' | 'forfeit' | '
   ss.forEach((s, seat) => {
     if (!s) return;
     s.matchId = null;
-    s.socket?.emit('match:end', { matchId: m.id, mode: m.mode, youWon: seat === winner, reason, rating: changes[seat] });
+    s.socket?.emit('match:end', {
+      matchId: m.id,
+      mode: m.mode,
+      youWon: seat === winner,
+      reason,
+      rating: changes[seat],
+      summary: { hands: m.handNo, durationMs: Date.now() - m.startedAt, ...m.summary[seat] },
+    });
     s.socket?.emit('me', s.user);
     if (!s.socket) sessions.delete(s.user.id);
   });
@@ -436,6 +453,9 @@ if (existsSync(dist)) {
   app.use(express.static(dist));
   app.get(/^\/(?!api|socket\.io).*/, (_req, res) => res.sendFile(path.join(dist, 'index.html')));
 }
+
+// CPU「つよい」が使う手の強さ順位表を起動時に作っておく（最初の対戦で待たせないため）
+handPercentile('As', 'Ah');
 
 http.listen(PORT, () => {
   console.log(`HeadsUp Online server: http://localhost:${PORT}  (store: ${supabaseAdmin ? 'supabase' : 'local file'})`);

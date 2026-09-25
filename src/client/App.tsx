@@ -8,6 +8,7 @@ import { SettingsScreen } from './screens/Settings';
 import { Intro } from './screens/Intro';
 import { Legal } from './screens/Legal';
 import { Stats } from './screens/Stats';
+import { HandHistory } from './screens/HandHistory';
 import { Table } from './screens/Table';
 import { Friend, Queue } from './screens/Waiting';
 
@@ -44,6 +45,7 @@ export function App() {
   else if (screen === 'profile') view = <Profile />;
   else if (screen === 'settings') view = <SettingsScreen />;
   else if (screen === 'stats') view = <Stats />;
+  else if (screen === 'history') view = <HandHistory />;
   else view = <Home />;
 
   return (

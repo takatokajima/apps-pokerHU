@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useT } from '../lib/i18n';
-import { go, socket, useApp } from '../lib/store';
+import { go, socket, startCpu, useApp } from '../lib/store';
 import { OnlinePill } from './Home';
 
 function useNow(interval = 1000) {
@@ -60,12 +60,18 @@ export function Queue() {
         {waited >= q.cpuOfferAfter && (
           <div className="pop mt-8 w-full">
             <p className="text-[13px] text-[var(--color-mist)]">{t('cpuOffer')}</p>
-            <button
-              onClick={() => socket.emit('cpu:start')}
-              className="glass mt-3 w-full rounded-xl px-5 py-4 text-[15px] font-medium transition active:scale-[.98]"
-            >
-              {t('playCpu')}
-            </button>
+            <p className="mt-1 text-[15px] font-bold">{t('playCpu')}</p>
+            <div className="mt-3 grid grid-cols-3 gap-2">
+              {(['weak', 'normal', 'strong'] as const).map((lv) => (
+                <button
+                  key={lv}
+                  onClick={() => startCpu(lv)}
+                  className="rounded-lg bg-[#2e2a4d] py-3.5 text-[15px] font-bold transition active:scale-95"
+                >
+                  {t(lv === 'weak' ? 'cpuWeak' : lv === 'normal' ? 'cpuNormal' : 'cpuStrong')}
+                </button>
+              ))}
+            </div>
           </div>
         )}
       </div>

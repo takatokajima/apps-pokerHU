@@ -51,21 +51,31 @@ button:disabled { cursor: default; }
   border: 1px solid var(--color-line);
 }
 
-/* テーブル: 縦長の楕円（トラック形）。平たいフェルト + 暗い太めの縁 */
-.poker-table {
+/* テーブル: 縦長（丸すぎない楕円）＋ 手前に傾けて奥行きを出す */
+.table-stage {
   position: absolute;
-  border-radius: 9999px;
-  background: radial-gradient(ellipse 70% 60% at 50% 45%, #332a66 0%, #262052 45%, #1a1740 80%, #141236 100%);
+  perspective: 1000px;
+  perspective-origin: 50% 20%;
+}
+.poker-table {
+  position: absolute; inset: 0;
+  border-radius: 42% / 24%;
+  transform: rotateX(9deg);
+  transform-origin: 50% 100%;
+  background:
+    radial-gradient(ellipse 70% 55% at 50% 42%, #3a3072 0%, #2a2356 45%, #1c1944 80%, #151339 100%);
   box-shadow:
-    0 0 0 10px #0b0a18,
-    0 0 0 11px rgba(196, 184, 255, 0.16),
-    0 24px 60px rgba(0, 0, 0, 0.6),
-    inset 0 0 0 1px rgba(217, 191, 140, 0.18),
-    inset 0 10px 40px rgba(0, 0, 0, 0.35);
+    0 0 0 9px #0b0a18,               /* 縁 */
+    0 0 0 10px rgba(196, 184, 255, 0.18),
+    0 14px 0 9px #06050f,            /* 手前側の縁の厚み */
+    0 30px 60px rgba(0, 0, 0, 0.7),
+    inset 0 0 0 1px rgba(217, 191, 140, 0.2),
+    inset 0 14px 40px rgba(0, 0, 0, 0.4),
+    inset 0 -20px 50px rgba(120, 100, 220, 0.08);
 }
 .poker-table::after {
   content: 'HEADS-UP';
-  position: absolute; left: 50%; top: 62%; transform: translate(-50%, -50%);
+  position: absolute; left: 50%; top: 66%; transform: translate(-50%, -50%);
   font-weight: 800; font-size: 13px; letter-spacing: 0.3em; color: rgba(196, 184, 255, 0.12);
   pointer-events: none;
 }

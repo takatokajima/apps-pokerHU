@@ -1,7 +1,7 @@
 // ゲームルール・レート設定（ここを変えればルールを調整できる）
 export const RULES = {
   startingStack: 50_000,
-  levelDurationMs: 5 * 60 * 1000,
+  levelDurationMs: 3 * 60 * 1000, // 3分ごとにブラインドアップ
   baseSmallBlind: 100,
   baseBigBlind: 200,
   actionTimeMs: 15_000,

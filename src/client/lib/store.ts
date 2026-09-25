@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import { io, type Socket } from 'socket.io-client';
-import type { ClientToServer, MatchEnd, ServerToClient, TableState, UserProfile } from '../../shared/protocol';
+import type { ClientToServer, CpuLevel, MatchEnd, ServerToClient, TableState, UserProfile } from '../../shared/protocol';
 import { introSeen } from './intro';
 import { getToken, localGuestId, onAuthChange, supabase } from './auth';
 
@@ -14,6 +14,7 @@ export type Screen =
   | 'profile'
   | 'settings'
   | 'stats'
+  | 'history'
   | 'terms'
   | 'privacy';
 
@@ -28,6 +29,8 @@ export interface AppState {
   clockOffset: number; // サーバー時刻 - 端末時刻
   matchEnd: MatchEnd | null;
   notice: string | null;
+  lastCpuLevel: CpuLevel; // 「もう一度」で同じ強さのCPUと対戦するため
+  modal: 'account' | 'updates' | null; // 画面の上に重ねて開くポップアップ
 }
 
 let state: AppState = {
@@ -41,6 +44,8 @@ let state: AppState = {
   clockOffset: 0,
   matchEnd: null,
   notice: null,
+  lastCpuLevel: 'normal',
+  modal: null,
 };
 const listeners = new Set<() => void>();
 
@@ -98,4 +103,9 @@ export function connect() {
     socket.disconnect();
     socket.connect();
   });
+}
+
+export function startCpu(level: CpuLevel) {
+  setState({ lastCpuLevel: level });
+  socket.emit('cpu:start', level);
 }
