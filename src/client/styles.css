@@ -1,5 +1,9 @@
 @import 'tailwindcss';
 
+/* 画面の高さが足りないとき（ブラウザのアドレスバー等で狭いスマホ）用の詰めた表示 */
+@custom-variant short (@media (max-height: 780px));
+@custom-variant tiny (@media (max-height: 660px));
+
 @theme {
   /* 書体: 飾りのない太めのゴシック */
   --font-sans: 'Noto Sans JP', 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', sans-serif;
@@ -20,6 +24,7 @@
 }
 
 html, body, #root { height: 100%; }
+@supports (height: 100dvh) { #root { height: 100dvh; } }
 body {
   margin: 0;
   background:

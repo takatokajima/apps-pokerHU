@@ -3,12 +3,22 @@ import { cardFace, useSettings } from '../lib/settings';
 const SUIT: Record<string, string> = { s: '♠', h: '♥', d: '♦', c: '♣' };
 const RANK: Record<string, string> = { T: '10' };
 
-// サイズごとの寸法（数字は大きく、マークは小さく）
+// サイズごとの寸法（数字は大きく、マークは小さく）。short/tiny は高さの狭い画面（ブラウザ表示のスマホ）用
 const DIMS = {
-  sm: { box: 'w-9 h-[52px]', rank: 24, suit: 11 },
-  md: { box: 'w-12 h-[68px]', rank: 32, suit: 13 },
-  board: { box: 'w-[50px] h-[72px]', rank: 34, suit: 14 },
-  lg: { box: 'w-[58px] h-[82px]', rank: 40, suit: 16 },
+  sm: { box: 'w-9 h-[52px] tiny:w-8 tiny:h-[46px]', rank: 'text-[24px] tiny:text-[21px]', ten: 'text-[20px] tiny:text-[17px]', suit: 'text-[11px]' },
+  md: { box: 'w-12 h-[68px]', rank: 'text-[32px]', ten: 'text-[26px]', suit: 'text-[13px]' },
+  board: {
+    box: 'w-[50px] h-[72px] short:w-[46px] short:h-[64px] tiny:w-[42px] tiny:h-[58px]',
+    rank: 'text-[34px] short:text-[30px] tiny:text-[27px]',
+    ten: 'text-[28px] short:text-[25px] tiny:text-[22px]',
+    suit: 'text-[14px] tiny:text-[12px]',
+  },
+  lg: {
+    box: 'w-[58px] h-[82px] short:w-[50px] short:h-[70px] tiny:w-[46px] tiny:h-[62px]',
+    rank: 'text-[40px] short:text-[34px] tiny:text-[30px]',
+    ten: 'text-[33px] short:text-[28px] tiny:text-[25px]',
+    suit: 'text-[16px] short:text-[14px] tiny:text-[13px]',
+  },
 } as const;
 
 export function PlayingCard({
@@ -40,12 +50,11 @@ export function PlayingCard({
       style={{ animationDelay: `${delay}ms`, color: face.fg, background: face.bg }}
       aria-label={`${r}${s}`}
     >
-      <span className="absolute left-[4px] top-[2px] leading-none" style={{ fontSize: d.suit }}>
+      <span className={`absolute left-[4px] top-[2px] leading-none ${d.suit}`}>
         {SUIT[s]}
       </span>
       <span
-        className="absolute inset-x-0 bottom-[2px] text-center leading-none tracking-[-0.06em]"
-        style={{ fontSize: r === '10' ? d.rank * 0.82 : d.rank }}
+        className={`absolute inset-x-0 bottom-[2px] text-center leading-none tracking-[-0.06em] ${r === '10' ? d.ten : d.rank}`}
       >
         {r}
       </span>
