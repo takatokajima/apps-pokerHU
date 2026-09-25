@@ -1,18 +1,16 @@
 # 引き継ぎ（2026-09-25 更新）
 
 ## 完了
-- MVP（ランクマ/フレンド/CPU/ランキング/プロフィール/オンライン人数/日英）
-- UI改修（設定画面・勝率/アウツ・役ハイライト・手動タイムバンク・緑基調）→ main にプッシュ済み
-- レイズ画面の視認性・ハイカード非ハイライト・ランアウト減速・アウツのカード表示・PWA化
-- Ten-Four参考の16項目（4色デッキ、ベット額常時表示、アクションログ、成績/グラフ/ハンド履歴リプレイ、ランキングタブ、Xリンク、LP、規約/ポリシー 等）
-  → ブランチ feature/tenfour-ideas（未コミット）
+- main に取り込み済み（PR #1, #2）: MVP、Ten-Four 参考の機能・UI、CPU（JACK/QUEEN/KING）、PWA、Vercel 用オフライン版
+- Vercel 公開済み（2026-09-26）: https://pokerapps.vercel.app （CLI の `vercel --prod` で手動デプロイ。GitHub 自動連携は未設定）
 
 ## 残タスク（優先順）
-1. feature/tenfour-ideas をコミット → プッシュ → PR
-2. 規約・ポリシーの【】部分の記入
-3. Supabase 設定（docs/setup/supabase.sql の追加分も実行）
-4. 公開先（HTTPS）決定 → PWA を実機確認
+1. 公開URLでスマホ実機の動作・PWA（ホーム画面に追加）を確認。必要なら Vercel ダッシュボードで GitHub 連携（push で自動デプロイ）
+2. 対人戦の公開方法を決める（Render にサーバー / Supabase Realtime へ作り替え）
+3. 規約・ポリシーの【】部分の記入
+4. Supabase 設定（ログイン・記録の保存）
 5. 同じ相手との連戦制限、Apple 認証
 
 ## 次回開始地点
-- `npm run dev` → http://localhost:5173
+- ローカル: `npm run dev` → http://localhost:5173（サーバー版）
+- オフライン版の確認: `OFFLINE=1 npx vite build` → `npx vite preview --port 4173`
