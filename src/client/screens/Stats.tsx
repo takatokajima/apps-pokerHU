@@ -5,6 +5,7 @@ import { AppShell } from '../components/AppShell';
 import { LineChart } from '../components/LineChart';
 import { XBadge } from '../components/XBadge';
 import { fmt, useT, type Key } from '../lib/i18n';
+import { OFFLINE } from '../lib/mode';
 import { socket, useApp } from '../lib/store';
 
 // 検証済みのグラフ色（暗い背景上で色覚の違いがあっても区別できる組み合わせ）
@@ -233,7 +234,7 @@ export function Stats() {
             </div>
           </>
         )}
-        <p className="mt-4 text-center text-[11px] text-white/35">{t('statsNote')}</p>
+        <p className="mt-4 text-center text-[11px] text-white/35">{OFFLINE ? t('offlineNote') : t('statsNote')}</p>
       </div>
     </AppShell>
   );

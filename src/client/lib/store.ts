@@ -3,6 +3,8 @@ import { io, type Socket } from 'socket.io-client';
 import type { ClientToServer, CpuLevel, MatchEnd, ServerToClient, TableState, UserProfile } from '../../shared/protocol';
 import { introSeen } from './intro';
 import { getToken, localGuestId, onAuthChange, supabase } from './auth';
+import { LocalSocket } from './localServer';
+import { OFFLINE } from './mode';
 
 export type Screen =
   | 'intro'
@@ -78,10 +80,13 @@ export const back = () => {
 export let socket: Socket<ServerToClient, ClientToServer>;
 
 export function connect() {
-  socket = io({
+  // オフライン版はブラウザ内サーバーにつなぐ（通信は発生しない）
+  socket = (OFFLINE
+    ? new LocalSocket()
+    : io({
     auth: (cb) => cb(supabase ? { token: getToken() } : { guestId: localGuestId() }),
-    transports: ['websocket', 'polling'],
-  });
+        transports: ['websocket', 'polling'],
+      })) as Socket<ServerToClient, ClientToServer>;
   socket.on('connect', () => setState({ connected: true }));
   socket.on('disconnect', () => setState({ connected: false }));
   socket.on('me', (me) => setState({ me }));
@@ -103,6 +108,8 @@ export function connect() {
     socket.disconnect();
     socket.connect();
   });
+  // ブラウザ内サーバーは自動で接続しないので、受け取りの準備ができてから接続する
+  if (OFFLINE) socket.connect();
 }
 
 export function startCpu(level: CpuLevel) {

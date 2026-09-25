@@ -1,5 +1,4 @@
 import { RULES, blindLevel } from '../../shared/config';
-import { randomUUID } from 'node:crypto';
 import type { ActionType, CpuLevel, HandRecord, MatchMode, SeatView, TableState } from '../../shared/protocol';
 import { allInOdds } from '../../shared/cards';
 import { decideBot } from './bot';
@@ -41,8 +40,8 @@ export class Match {
   over = false;
 
   private button = Math.random() < 0.5 ? 0 : 1;
-  private timer: NodeJS.Timeout | null = null;
-  private dcTimers: [NodeJS.Timeout | null, NodeJS.Timeout | null] = [null, null];
+  private timer: ReturnType<typeof setTimeout> | null = null;
+  private dcTimers: [ReturnType<typeof setTimeout> | null, ReturnType<typeof setTimeout> | null] = [null, null];
   private deadline: number | null = null;
   private timeTotal: number | null = null;
   private usingTimebank = false;
@@ -140,7 +139,7 @@ export class Match {
   private emitHandRecord(h: Hand) {
     const r = h.result!;
     const record: HandRecord = {
-      id: randomUUID(),
+      id: globalThis.crypto.randomUUID(),
       matchId: this.id,
       mode: this.mode,
       handNo: this.handNo,

@@ -4,6 +4,7 @@ import type { LeaderboardEntry, LeaderboardTab } from '../../shared/protocol';
 import { AppShell } from '../components/AppShell';
 import { XBadge } from '../components/XBadge';
 import { fmt, useT } from '../lib/i18n';
+import { OFFLINE } from '../lib/mode';
 import { useApp } from '../lib/store';
 
 type Span = 'weekly' | 'act';
@@ -21,6 +22,7 @@ export function Leaderboard() {
 
   useEffect(() => {
     setData(null);
+    if (OFFLINE) return; // オフライン版はランキングなし
     fetch(`/api/leaderboard?tab=${tab}`)
       .then((r) => r.json())
       .then((d) => {
@@ -41,6 +43,19 @@ export function Leaderboard() {
         <span className="ml-0.5 text-[12px] text-white/50">{t('wins')}</span>
       </span>
     );
+
+  if (OFFLINE) {
+    return (
+      <AppShell>
+        <div className="rise mt-2 rounded-xl bg-[#15122b] p-6 text-center ring-1 ring-[#c4b8ff]/10">
+          <Trophy size={28} className="mx-auto text-[var(--color-gold)]" />
+          <div className="mt-2 text-[18px] font-black">Leaderboard</div>
+          <div className="mt-1 text-[14px] font-bold text-[var(--color-mist)]">{t('comingSoon')}</div>
+          <p className="mt-3 text-[13px] leading-relaxed text-white/70">{t('comingSoonNote')}</p>
+        </div>
+      </AppShell>
+    );
+  }
 
   return (
     <AppShell>
