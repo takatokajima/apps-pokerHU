@@ -96,7 +96,14 @@ const dict = {
   matchesUnit: { ja: '試合', en: 'matches' },
   winsLabel: { ja: '勝利数', en: 'Wins' },
   comingSoon: { ja: '準備中', en: 'Coming soon' },
-  comingSoonNote: { ja: '対人戦（ランクマッチ・フレンドマッチ）とランキングは準備中です。今はCPUと対戦できます。', en: 'Ranked, friend matches and leaderboards are coming soon. Play the CPU for now.' },
+  comingSoonNote: { ja: 'ランクマッチとランキングは準備中です。今はCPUと対戦できます。', en: 'Ranked matches and leaderboards are coming soon. Play the CPU for now.' },
+  noOpponent: { ja: '相手が見つからないときはCPUと対戦', en: 'No opponent? Play the CPU' },
+  yourRating: { ja: 'あなたのレート', en: 'Your rating' },
+  friendCardSub: { ja: '友達と同じ合言葉を入れると対戦できます', en: 'Enter the same passphrase as your friend' },
+  p2pNote: { ja: '先に入室した人のスマホで試合を進めます。試合中はアプリを閉じたり、別のアプリに切り替えたりしないでください。', en: 'The match runs on the phone of whoever entered first. Keep the app open during the match.' },
+  roomFull: { ja: 'この合言葉の部屋は対戦中です。別の合言葉にしてください', en: 'That room is already playing. Try another passphrase.' },
+  friendLeft: { ja: '相手との接続が切れました', en: 'Your friend disconnected' },
+  p2pFailed: { ja: '接続できませんでした。通信環境を確認してもう一度お試しください', en: 'Could not connect. Check your connection and try again.' },
   offlineNote: { ja: 'この端末に保存されたCPU戦の記録です（直近150ハンド）', en: 'CPU games saved on this device (last 150 hands)' },
   playAgain: { ja: 'もう一度', en: 'Play again' },
   tipVpip: { ja: 'プリフロップで自分からチップを入れた割合', en: 'How often you put money in preflop' },
@@ -213,6 +220,7 @@ const dict = {
 } as const;
 
 export type Key = keyof typeof dict;
+export const isKey = (k: string): k is Key => Object.prototype.hasOwnProperty.call(dict, k);
 
 const detect = (): Lang => {
   try {
