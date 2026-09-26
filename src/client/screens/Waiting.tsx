@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useT } from '../lib/i18n';
+import { OFFLINE } from '../lib/mode';
 import { go, socket, startCpu, useApp } from '../lib/store';
 import { OnlinePill } from './Home';
 
@@ -104,6 +105,7 @@ export function Friend() {
           </h2>
           <div className="mt-4 text-[12px] uppercase tracking-[.3em] text-[var(--color-mist)]">{t('passphrase')}</div>
           <div className="font-display mt-1 text-[34px] text-[var(--color-gold)]">{f.code}</div>
+          {OFFLINE && <p className="mt-6 max-w-xs text-[12px] leading-relaxed text-[var(--color-mist)]">{t('p2pNote')}</p>}
         </div>
         <button
           onClick={() => socket.emit('friend:leave')}

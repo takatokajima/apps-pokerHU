@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { useT } from './lib/i18n';
+import { isKey, useT } from './lib/i18n';
 import { setState, useApp } from './lib/store';
 import { Home } from './screens/Home';
 import { Leaderboard } from './screens/Leaderboard';
@@ -60,7 +60,7 @@ export function App() {
       )}
       {notice && (
         <div className="glass pop fixed left-1/2 top-3 z-50 -translate-x-1/2 rounded-full px-4 py-2 text-[13px]">
-          {notice === 'otherTab' ? t('otherTab') : notice}
+          {isKey(notice) ? t(notice) : notice}
         </div>
       )}
     </div>

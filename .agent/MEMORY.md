@@ -84,3 +84,11 @@
 - 対人戦を公開するときは、ゲームサーバーを Render 等に置く（render.yaml あり）か、Supabase Realtime 等に作り替える
 - スターティングハンドの順位表は src/shared/handRanks.json（再生成: npx tsx scripts/make-hand-ranks.ts）
 - Vercel プロジェクト名 pokerapps（アカウント takatokajima-2097）。本番URL https://pokerapps.vercel.app 、デプロイは `vercel --prod --yes`
+
+## フレンドマッチ P2P（2026-09-26）
+- ユーザー判断で「サーバーなしでスマホ同士を直接つなぐ」を採用（Render は不採用）
+- src/client/lib/localServer.ts: 合言葉の SHA-256 から PeerJS の部屋IDを作り、先に入った人が進行役（Match を実行）、後の人は参加者（席1）
+- 進行役→参加者には stateFor(1)（進行役の手札は伏せたもの）とハンド記録を送る。参加者は操作だけ送る
+- 参加者の切断: 自動チェック/フォールド + 3分で不戦敗。同じ合言葉で入り直すと復帰。進行役が落ちると参加者の勝ち扱い
+- PeerJS の公開シグナリング（0.peerjs.com）と公開TURNを利用。混雑・停止時はつながらない可能性あり
+- ホーム: ランクマ枠にレート・ランキング上位・CPU（相手がいないとき）をまとめ、フレンドマッチは合言葉入力つき別枠
